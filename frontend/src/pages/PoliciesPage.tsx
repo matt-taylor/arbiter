@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import type React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Edit, Trash2, Search, Sun, Moon, Monitor, TestTube } from 'lucide-react'
 import { policiesApi } from '@/lib/api'

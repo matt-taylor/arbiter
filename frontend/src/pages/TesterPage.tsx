@@ -220,7 +220,7 @@ export default function TesterPage() {
               {loading ? (
                 <>
                   <span className="mr-2">
-                    <Loading size="sm" />
+                    <Loading />
                   </span>
                   Checking...
                 </>
@@ -248,7 +248,7 @@ export default function TesterPage() {
               {/* Status */}
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium">Would return:</span>
-                <Badge variant="outline" className="font-mono">
+                <Badge variant="default" className="font-mono">
                   HTTP {result.status}
                 </Badge>
               </div>
@@ -259,19 +259,19 @@ export default function TesterPage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between gap-4">
                     <span className="font-medium">Total:</span>
-                    <Badge variant="outline" className="font-mono">
+                    <Badge variant="default" className="font-mono">
                       {(result.total_latency_ms ?? result.latency_ms ?? 0).toFixed(3)} ms
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <span className="font-medium text-muted-foreground">Killswitch:</span>
-                    <Badge variant="outline" className="font-mono">
+                    <Badge variant="default" className="font-mono">
                       {(result.killswitch_latency_ms ?? 0).toFixed(3)} ms
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <span className="font-medium text-muted-foreground">Gatekeeper:</span>
-                    <Badge variant="outline" className="font-mono">
+                    <Badge variant="default" className="font-mono">
                       {(result.gatekeeper_latency_ms ?? 0).toFixed(3)} ms
                     </Badge>
                   </div>
