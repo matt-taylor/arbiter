@@ -1,8 +1,10 @@
 import axios from 'axios'
 import type { HostPolicy, EffectivePolicy, CreatePolicyRequest, TestCheckResponse } from './types'
 
+// Arbiter API instance (uses configurable base URL)
+const arbiterBaseURL = import.meta.env.VITE_ARBITER_API_BASE_URL || '/api/v1'
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: arbiterBaseURL,
   headers: {
     'Content-Type': 'application/json',
   },
