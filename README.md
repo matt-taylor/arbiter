@@ -205,6 +205,84 @@ Get the effective policy for a host (after forced constraints are applied).
 }
 ```
 
+### Testing
+
+#### `POST /api/v1/test/check`
+
+Test endpoint for evaluating authorization decisions. Always returns HTTP 200 with decision details in JSON body. Useful for UI testing and debugging.
+
+**Prerequisites:**
+- Killswitch service must be running and accessible at the URL configured in `KILLSWITCH_BASE_URL`
+- Gatekeeper service must be running and accessible at the URL configured in `GATEKEEPER_BASE_URL`
+- Both services must be properly configured and responding to requests
+
+**Request Body:**
+```json
+{
+  "host": "example.com",
+  "method": "GET",
+  "uri": "/api/v1/users"
+}
+```
+
+**Response (HTTP 200):**
+```json
+{
+  "decision": "allow",
+  "status": 200,
+  "reason": "authorized",
+  "source": "host",
+  "policy": "host:example.com",
+  "trace_id": "550e8400-e29b-41d4-a716-446655440000",
+  "normalized": {
+    "host": "example.com",
+    "method": "GET",
+    "uri": "/api/v1/users"
+  },
+  "latency_ms": 45.123,
+  "total_latency_ms": 45.123,
+  "killswitch_latency_ms": 12.456,
+  "gatekeeper_latency_ms": 28.789,
+  "nginx_headers": {
+    "X-Auth-Decision": "allow",
+    "X-Auth-Reason": "authorized",
+    "X-Auth-Source": "host",
+    "X-Auth-Policy": "host:example.com",
+    "X-Auth-Trace": "550e8400-e29b-41d4-a716-446655440000",
+    "X-Identity-User-Id": "123",
+    "X-Identity-Email": "user@example.com",
+    "X-Identity-Groups": "admin,users"
+  },
+  "identity_headers": {
+    "X-Identity-User-Id": "123",
+    "X-Identity-Email": "user@example.com",
+    "X-Identity-Groups": "admin,users"
+  },
+  "killswitch_headers": {
+    "X-Killswitch-Rule": "GET:example.com:/api/v1/users",
+    "X-Killswitch-Reason": "Maintenance"
+  }
+}
+```
+
+**Response Fields:**
+- `decision` - Decision: `allow`, `unauth`, `forbid`, `killswitch`, or `error`
+- `status` - HTTP status code that would be returned
+- `reason` - Human-readable reason
+- `source` - Policy source: `host`, `none`, or `forced`
+- `policy` - Policy identifier: `host:<hostname>` or `none`
+- `trace_id` - Correlation ID (UUID or X-Request-Id)
+- `normalized` - Normalized request values (host, method, uri)
+- `latency_ms` - Total latency (deprecated, use `total_latency_ms`)
+- `total_latency_ms` - Total end-to-end latency in milliseconds
+- `killswitch_latency_ms` - Killswitch check latency (0 if not called)
+- `gatekeeper_latency_ms` - Gatekeeper check latency (0 if not called)
+- `nginx_headers` - All headers that would be sent back to NGINX
+- `identity_headers` - Identity headers (if present, from Gatekeeper)
+- `killswitch_headers` - Killswitch headers (if present, when blocked)
+
+**Note:** This endpoint uses your current session cookies (if authenticated) for Gatekeeper checks, making it useful for testing authorization decisions in the UI.
+
 ### Health Checks
 
 #### `GET /healthz`
