@@ -1,0 +1,83 @@
+# Binaries
+arbiter
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go test files
+*.test
+*.prof
+
+# Go workspace file
+go.work
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Temporary directories
+tmp/
+temp/
+*.tmp
+
+# Frontend build output
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/node_modules/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Coverage reports
+coverage/
+*.coverprofile
+*.out
+
+# Air (live reload) files
+.air.toml
+
+# Debug files
+debug
+*.debug
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Web directory (if used for serving)
+web/
