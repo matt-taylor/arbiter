@@ -23,7 +23,7 @@ func TestClient_CheckKillswitch_Allow(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 		"X-Auth-Trace":       "test-trace",
 	}
@@ -52,7 +52,7 @@ func TestClient_CheckKillswitch_Block(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -91,7 +91,7 @@ func TestClient_AuthorizeGatekeeper_Allow(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 		"Cookie":            "gk_sid=test-session",
 		"X-Auth-Trace":      "test-trace",
@@ -126,7 +126,7 @@ func TestClient_AuthorizeGatekeeper_Unauth(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -150,7 +150,7 @@ func TestClient_AuthorizeGatekeeper_Forbid(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -181,7 +181,7 @@ func TestClient_HeaderForwarding(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 		"X-Forwarded-For":   "1.2.3.4",
 		"X-Real-IP":         "5.6.7.8",

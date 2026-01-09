@@ -40,10 +40,11 @@ func NewHandlers(engine *arbiter.Engine, cache *policycache.Cache, store store.S
 // HandleCheck handles GET /api/v1/check
 func (h *Handlers) HandleCheck(w http.ResponseWriter, r *http.Request) {
 	// Extract headers from request
+	// Use CanonicalHeaderKey to ensure consistent header key format
 	headers := make(map[string]string)
 	for k, v := range r.Header {
 		if len(v) > 0 {
-			headers[k] = v[0]
+			headers[http.CanonicalHeaderKey(k)] = v[0]
 		}
 	}
 
@@ -61,6 +62,11 @@ func (h *Handlers) HandleCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Auth-Source", decision.Source)
 	w.Header().Set("X-Auth-Policy", decision.Policy)
 	w.Header().Set("X-Auth-Trace", decision.TraceID)
+
+	// Set missing headers if present
+	if len(decision.MissingHeaders) > 0 {
+		w.Header().Set("X-MISSING-HEADERS", strings.Join(decision.MissingHeaders, ","))
+	}
 
 	// Set identity headers if present
 	for k, v := range decision.IdentityHeaders {
@@ -371,7 +377,7 @@ func (h *Handlers) HandleTestCheck(w http.ResponseWriter, r *http.Request) {
 	headers := make(map[string]string)
 	headers["X-Original-Host"] = strings.ToLower(strings.TrimSpace(reqBody.Host))
 	headers["X-Original-Method"] = strings.ToUpper(strings.TrimSpace(reqBody.Method))
-	headers["X-Original-URI"] = reqBody.URI
+	headers["X-Original-Uri"] = reqBody.URI
 
 	// Include cookies from the request (gk_sid and gk_csrf)
 	cookieHeader := r.Header.Get("Cookie")
@@ -420,7 +426,7 @@ func (h *Handlers) HandleTestCheck(w http.ResponseWriter, r *http.Request) {
 			"normalized":           map[string]string{
 				"host":   headers["X-Original-Host"],
 				"method": headers["X-Original-Method"],
-				"uri":    headers["X-Original-URI"],
+				"uri":    headers["X-Original-Uri"],
 			},
 			"latency_ms":            latencyMs,
 			"total_latency_ms":      latencyMs,
@@ -442,7 +448,7 @@ func (h *Handlers) HandleTestCheck(w http.ResponseWriter, r *http.Request) {
 		"normalized": map[string]string{
 			"host":   headers["X-Original-Host"],
 			"method": headers["X-Original-Method"],
-			"uri":    headers["X-Original-URI"],
+			"uri":    headers["X-Original-Uri"],
 		},
 		"latency_ms":              decision.TotalLatencyMs,
 		"total_latency_ms":        decision.TotalLatencyMs,
@@ -457,6 +463,11 @@ func (h *Handlers) HandleTestCheck(w http.ResponseWriter, r *http.Request) {
 	nginxHeaders["X-Auth-Source"] = decision.Source
 	nginxHeaders["X-Auth-Policy"] = decision.Policy
 	nginxHeaders["X-Auth-Trace"] = decision.TraceID
+
+	// Add missing headers if present
+	if len(decision.MissingHeaders) > 0 {
+		nginxHeaders["X-MISSING-HEADERS"] = strings.Join(decision.MissingHeaders, ",")
+	}
 
 	// Add identity headers if present
 	for k, v := range decision.IdentityHeaders {

@@ -42,7 +42,7 @@ func TestEngine_Check_NoPolicy(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":     "/path",
+		"X-Original-Uri":     "/path",
 		"X-Original-Method":  "GET",
 		"X-Request-Id":       "test-request-id",
 	}
@@ -107,7 +107,7 @@ func TestEngine_Check_ForcedConstraints(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "killswitch.example.com",
-		"X-Original-URI":     "/path",
+		"X-Original-Uri":     "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -146,7 +146,7 @@ func TestEngine_Check_KillswitchOnly_Allow(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -186,7 +186,7 @@ func TestEngine_Check_KillswitchOnly_Block(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -226,7 +226,7 @@ func TestEngine_Check_GatekeeperOnly_Unauth(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -263,7 +263,7 @@ func TestEngine_Check_GatekeeperOnly_Forbid(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -303,7 +303,7 @@ func TestEngine_Check_GatekeeperOnly_Allow(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -356,7 +356,7 @@ func TestEngine_Check_BothChecks(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -404,7 +404,7 @@ func TestEngine_Check_KillswitchBlock_NoGatekeeperCall(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":    "/path",
+		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 	}
 
@@ -428,7 +428,7 @@ func TestEngine_Check_TraceID_Generation(t *testing.T) {
 
 	headers := map[string]string{
 		"X-Original-Host":   "example.com",
-		"X-Original-URI":     "/path",
+		"X-Original-Uri":     "/path",
 		"X-Original-Method":  "GET",
 		// No X-Request-Id
 	}

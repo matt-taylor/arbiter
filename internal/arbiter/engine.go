@@ -22,6 +22,7 @@ type Decision struct {
 	TraceID      string
 	IdentityHeaders map[string]string
 	KillswitchHeaders map[string]string
+	MissingHeaders   []string // List of missing required headers
 	TotalLatencyMs    float64 // Total latency for the entire check
 	KillswitchLatencyMs float64 // Latency for killswitch check (0 if not called)
 	GatekeeperLatencyMs float64 // Latency for gatekeeper check (0 if not called)
@@ -48,12 +49,23 @@ func NewEngine(cache *policycache.Cache, client *downstream.Client, killswitchPu
 // Check makes an authorization decision for a request
 func (e *Engine) Check(ctx context.Context, headers map[string]string) (*Decision, error) {
 	// 1. Validate required headers
+	// Use canonical header keys to match Go's http.Header canonicalization
 	host := headers["X-Original-Host"]
-	uri := headers["X-Original-URI"]
+	uri := headers["X-Original-Uri"]
 	method := headers["X-Original-Method"]
 
 	if host == "" || uri == "" || method == "" {
 		traceID := e.getTraceID(headers)
+		missingHeaders := []string{}
+		if host == "" {
+			missingHeaders = append(missingHeaders, "X-Original-Host")
+		}
+		if uri == "" {
+			missingHeaders = append(missingHeaders, "X-Original-Uri")
+		}
+		if method == "" {
+			missingHeaders = append(missingHeaders, "X-Original-Method")
+		}
 		return &Decision{
 			Status:   http.StatusInternalServerError,
 			Decision: "error",
@@ -61,6 +73,7 @@ func (e *Engine) Check(ctx context.Context, headers map[string]string) (*Decisio
 			Source:   "none",
 			Policy:   "none",
 			TraceID:  traceID,
+			MissingHeaders: missingHeaders,
 			TotalLatencyMs: 0,
 			KillswitchLatencyMs: 0,
 			GatekeeperLatencyMs: 0,
@@ -324,7 +337,7 @@ func (e *Engine) buildKillswitchHeaders(originalHeaders map[string]string, trace
 
 	// Required canonical headers
 	headers["X-Original-Host"] = originalHeaders["X-Original-Host"]
-	headers["X-Original-URI"] = originalHeaders["X-Original-URI"]
+	headers["X-Original-Uri"] = originalHeaders["X-Original-Uri"]
 	headers["X-Original-Method"] = originalHeaders["X-Original-Method"]
 
 	// Trace header
@@ -353,7 +366,7 @@ func (e *Engine) buildGatekeeperHeaders(originalHeaders map[string]string, trace
 
 	// Required canonical headers
 	headers["X-Original-Host"] = originalHeaders["X-Original-Host"]
-	headers["X-Original-URI"] = originalHeaders["X-Original-URI"]
+	headers["X-Original-Uri"] = originalHeaders["X-Original-Uri"]
 	headers["X-Original-Method"] = originalHeaders["X-Original-Method"]
 
 	// Trace header
