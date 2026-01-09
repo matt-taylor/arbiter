@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -47,6 +48,20 @@ func (h *Handlers) HandleCheck(w http.ResponseWriter, r *http.Request) {
 			headers[http.CanonicalHeaderKey(k)] = v[0]
 		}
 	}
+	// #region agent log
+	if logFile, err := os.OpenFile("/Users/matthewtaylor/Projects/proxmox/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+		cookieVal := headers["Cookie"]
+		if cookieVal == "" {
+			cookieVal = "NOT_PRESENT"
+		}
+		cookiePreview := cookieVal
+		if len(cookieVal) > 50 {
+			cookiePreview = cookieVal[:50]
+		}
+		logFile.WriteString(fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"handlers.go:49","message":"Cookie header received from client","data":{"cookie_present":%t,"cookie_value_preview":"%s"},"timestamp":%d}`+"\n", cookieVal != "NOT_PRESENT", cookiePreview, time.Now().UnixMilli()))
+		logFile.Close()
+	}
+	// #endregion
 
 	// Make decision
 	decision, err := h.engine.Check(r.Context(), headers)
