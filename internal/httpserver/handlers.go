@@ -411,7 +411,16 @@ func (h *Handlers) HandleTestCheck(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Override with values from request body (required fields)
-	headers["X-Original-Host"] = strings.ToLower(strings.TrimSpace(reqBody.Host))
+	// Normalize host: strip "www." prefix if present (case-insensitive)
+	normalizedHost := normalizeHostForTester(strings.ToLower(strings.TrimSpace(reqBody.Host)))
+	headers["X-Original-Host"] = normalizedHost
+	// If X-Policy-Host is not provided in headers, use the normalized host from body
+	if headers["X-Policy-Host"] == "" {
+		headers["X-Policy-Host"] = normalizedHost
+	} else {
+		// Normalize X-Policy-Host if it was provided in headers
+		headers["X-Policy-Host"] = normalizeHostForTester(headers["X-Policy-Host"])
+	}
 	headers["X-Original-Method"] = strings.ToUpper(strings.TrimSpace(reqBody.Method))
 	headers["X-Original-Uri"] = reqBody.URI
 
@@ -511,4 +520,16 @@ func (h *Handlers) HandleTestCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// normalizeHostForTester strips "www." prefix from host if present (case-insensitive)
+func normalizeHostForTester(host string) string {
+	if host == "" {
+		return host
+	}
+	hostLower := strings.ToLower(host)
+	if strings.HasPrefix(hostLower, "www.") {
+		return host[4:]
+	}
+	return host
 }
