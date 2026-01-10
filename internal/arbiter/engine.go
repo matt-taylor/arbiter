@@ -350,6 +350,18 @@ func (e *Engine) Check(ctx context.Context, headers map[string]string) (*Decisio
 	}, nil
 }
 
+// normalizeHost strips "www." prefix from host if present (case-insensitive)
+func normalizeHost(host string) string {
+	if host == "" {
+		return host
+	}
+	hostLower := strings.ToLower(host)
+	if strings.HasPrefix(hostLower, "www.") {
+		return host[4:]
+	}
+	return host
+}
+
 // getTraceID extracts or generates a trace ID
 func (e *Engine) getTraceID(headers map[string]string) string {
 	if traceID := headers["X-Request-Id"]; traceID != "" {
@@ -363,11 +375,15 @@ func (e *Engine) buildKillswitchHeaders(originalHeaders map[string]string, trace
 	headers := make(map[string]string)
 
 	// Required canonical headers
-	headers["X-Original-Host"] = originalHeaders["X-Original-Host"]
-	// Send normalized policy host to downstream services
+	// Send normalized policy host as X-Original-Host to downstream services
+	var hostToSend string
 	if policyHost := originalHeaders["X-Policy-Host"]; policyHost != "" {
-		headers["X-Policy-Host"] = policyHost
+		hostToSend = policyHost
+	} else {
+		hostToSend = originalHeaders["X-Original-Host"]
 	}
+	// Normalize the host (strip www. prefix if present)
+	headers["X-Original-Host"] = normalizeHost(hostToSend)
 	headers["X-Original-Uri"] = originalHeaders["X-Original-Uri"]
 	headers["X-Original-Method"] = originalHeaders["X-Original-Method"]
 
@@ -396,11 +412,15 @@ func (e *Engine) buildGatekeeperHeaders(originalHeaders map[string]string, trace
 	headers := make(map[string]string)
 
 	// Required canonical headers
-	headers["X-Original-Host"] = originalHeaders["X-Original-Host"]
-	// Send normalized policy host to downstream services
+	// Send normalized policy host as X-Original-Host to downstream services
+	var hostToSend string
 	if policyHost := originalHeaders["X-Policy-Host"]; policyHost != "" {
-		headers["X-Policy-Host"] = policyHost
+		hostToSend = policyHost
+	} else {
+		hostToSend = originalHeaders["X-Original-Host"]
 	}
+	// Normalize the host (strip www. prefix if present)
+	headers["X-Original-Host"] = normalizeHost(hostToSend)
 	headers["X-Original-Uri"] = originalHeaders["X-Original-Uri"]
 	headers["X-Original-Method"] = originalHeaders["X-Original-Method"]
 

@@ -218,9 +218,9 @@ func TestClient_HeaderForwarding_PolicyHost(t *testing.T) {
 
 	client := NewClient(server.URL, "http://localhost:3000", 1000, 1000)
 
+	// Simulate what the engine sends: normalized policy host as X-Original-Host
 	headers := map[string]string{
-		"X-Original-Host":   "original-host.com",
-		"X-Policy-Host":     "policy-host.com",
+		"X-Original-Host":   "policy-host.com", // Engine sends normalized policy host here
 		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 		"X-Auth-Trace":      "trace-456",
@@ -231,11 +231,9 @@ func TestClient_HeaderForwarding_PolicyHost(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if receivedHeaders["X-Original-Host"] != "original-host.com" {
-		t.Error("X-Original-Host not forwarded")
-	}
-	if receivedHeaders["X-Policy-Host"] != "policy-host.com" {
-		t.Error("X-Policy-Host not forwarded")
+	// X-Original-Host should contain the normalized policy host value
+	if receivedHeaders["X-Original-Host"] != "policy-host.com" {
+		t.Errorf("X-Original-Host should contain policy host, got '%s'", receivedHeaders["X-Original-Host"])
 	}
 }
 
@@ -255,9 +253,9 @@ func TestClient_AuthorizeGatekeeper_PolicyHost(t *testing.T) {
 
 	client := NewClient("http://localhost:9090", server.URL, 1000, 1000)
 
+	// Simulate what the engine sends: normalized policy host as X-Original-Host
 	headers := map[string]string{
-		"X-Original-Host":   "original-host.com",
-		"X-Policy-Host":     "policy-host.com",
+		"X-Original-Host":   "policy-host.com", // Engine sends normalized policy host here
 		"X-Original-Uri":    "/path",
 		"X-Original-Method": "GET",
 		"Cookie":            "gk_sid=test-session",
@@ -269,10 +267,8 @@ func TestClient_AuthorizeGatekeeper_PolicyHost(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if receivedHeaders["X-Original-Host"] != "original-host.com" {
-		t.Error("X-Original-Host not forwarded")
-	}
-	if receivedHeaders["X-Policy-Host"] != "policy-host.com" {
-		t.Error("X-Policy-Host not forwarded to Gatekeeper")
+	// X-Original-Host should contain the normalized policy host value
+	if receivedHeaders["X-Original-Host"] != "policy-host.com" {
+		t.Errorf("X-Original-Host should contain policy host, got '%s'", receivedHeaders["X-Original-Host"])
 	}
 }
