@@ -303,11 +303,17 @@ func (e *Engine) Check(ctx context.Context, headers map[string]string) (*Decisio
 			if gkResp.Email != "" {
 				identityHeaders["X-Identity-Email"] = gkResp.Email
 			}
-			if gkResp.Groups != "" {
-				identityHeaders["X-Identity-Groups"] = gkResp.Groups
-			}
+		if gkResp.Groups != "" {
+			identityHeaders["X-Identity-Groups"] = gkResp.Groups
+		}
+		if gkResp.Username != "" {
+			identityHeaders["X-Identity-Username"] = gkResp.Username
+		}
+		if gkResp.Scopes != "" {
+			identityHeaders["X-Identity-Scopes"] = gkResp.Scopes
+		}
 
-			totalLatencyMs := float64(time.Since(totalStartTime).Nanoseconds()) / 1e6
+		totalLatencyMs := float64(time.Since(totalStartTime).Nanoseconds()) / 1e6
 			return &Decision{
 				Status:          http.StatusOK,
 				Decision:        "allow",
