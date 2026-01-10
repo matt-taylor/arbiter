@@ -402,31 +402,18 @@ func (h *Handlers) HandleTestCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build headers map for engine.Check
+	// Build headers map for engine.Check - extract from request like real endpoint
 	headers := make(map[string]string)
+	// Extract all headers from request (like HandleCheck does)
+	for k, v := range r.Header {
+		if len(v) > 0 {
+			headers[http.CanonicalHeaderKey(k)] = v[0]
+		}
+	}
+	// Override with values from request body (required fields)
 	headers["X-Original-Host"] = strings.ToLower(strings.TrimSpace(reqBody.Host))
 	headers["X-Original-Method"] = strings.ToUpper(strings.TrimSpace(reqBody.Method))
 	headers["X-Original-Uri"] = reqBody.URI
-
-	// Include cookies from the request (gk_sid and gk_csrf)
-	cookieHeader := r.Header.Get("Cookie")
-	if cookieHeader != "" {
-		headers["Cookie"] = cookieHeader
-	}
-
-	// Include other optional headers if present
-	if forwardedFor := r.Header.Get("X-Forwarded-For"); forwardedFor != "" {
-		headers["X-Forwarded-For"] = forwardedFor
-	}
-	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		headers["X-Real-IP"] = realIP
-	}
-	if userAgent := r.Header.Get("User-Agent"); userAgent != "" {
-		headers["User-Agent"] = userAgent
-	}
-	if requestID := r.Header.Get("X-Request-Id"); requestID != "" {
-		headers["X-Request-Id"] = requestID
-	}
 
 	// Measure evaluation latency
 	startTime := time.Now()
