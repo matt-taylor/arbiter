@@ -58,12 +58,14 @@ func (h *Handlers) HandleCheck(w http.ResponseWriter, r *http.Request) {
 
 	// Log detailed decision result
 	method := headers["X-Original-Method"]
-	host := headers["X-Original-Host"]
+	originalHost := headers["X-Original-Host"]
+	policyHost := headers["X-Policy-Host"]
 	path := headers["X-Original-Uri"]
 
 	logEvent := h.logger.Info().
 		Str("method", method).
-		Str("host", host).
+		Str("original_host", originalHost).
+		Str("policy_host", policyHost).
 		Str("path", path).
 		Str("decision", decision.Decision).
 		Int("status", decision.Status).

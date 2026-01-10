@@ -202,3 +202,77 @@ func TestClient_HeaderForwarding(t *testing.T) {
 		t.Error("X-Auth-Trace not forwarded")
 	}
 }
+
+func TestClient_HeaderForwarding_PolicyHost(t *testing.T) {
+	var receivedHeaders map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = make(map[string]string)
+		for k, v := range r.Header {
+			if len(v) > 0 {
+				receivedHeaders[k] = v[0]
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "http://localhost:3000", 1000, 1000)
+
+	headers := map[string]string{
+		"X-Original-Host":   "original-host.com",
+		"X-Policy-Host":     "policy-host.com",
+		"X-Original-Uri":    "/path",
+		"X-Original-Method": "GET",
+		"X-Auth-Trace":      "trace-456",
+	}
+
+	_, err := client.CheckKillswitch(context.Background(), headers)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if receivedHeaders["X-Original-Host"] != "original-host.com" {
+		t.Error("X-Original-Host not forwarded")
+	}
+	if receivedHeaders["X-Policy-Host"] != "policy-host.com" {
+		t.Error("X-Policy-Host not forwarded")
+	}
+}
+
+func TestClient_AuthorizeGatekeeper_PolicyHost(t *testing.T) {
+	var receivedHeaders map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = make(map[string]string)
+		for k, v := range r.Header {
+			if len(v) > 0 {
+				receivedHeaders[k] = v[0]
+			}
+		}
+		w.Header().Set("X-Identity-User-Id", "123")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient("http://localhost:9090", server.URL, 1000, 1000)
+
+	headers := map[string]string{
+		"X-Original-Host":   "original-host.com",
+		"X-Policy-Host":     "policy-host.com",
+		"X-Original-Uri":    "/path",
+		"X-Original-Method": "GET",
+		"Cookie":            "gk_sid=test-session",
+		"X-Auth-Trace":      "trace-456",
+	}
+
+	_, err := client.AuthorizeGatekeeper(context.Background(), headers)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if receivedHeaders["X-Original-Host"] != "original-host.com" {
+		t.Error("X-Original-Host not forwarded")
+	}
+	if receivedHeaders["X-Policy-Host"] != "policy-host.com" {
+		t.Error("X-Policy-Host not forwarded to Gatekeeper")
+	}
+}

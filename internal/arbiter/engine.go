@@ -50,15 +50,36 @@ func NewEngine(cache *policycache.Cache, client *downstream.Client, killswitchPu
 func (e *Engine) Check(ctx context.Context, headers map[string]string) (*Decision, error) {
 	// 1. Validate required headers
 	// Use canonical header keys to match Go's http.Header canonicalization
-	host := headers["X-Original-Host"]
+	originalHost := headers["X-Original-Host"]
+	policyHost := headers["X-Policy-Host"]
 	uri := headers["X-Original-Uri"]
 	method := headers["X-Original-Method"]
+
+	// Normalize policy host: strip "www." prefix if present (case-insensitive)
+	if policyHost != "" {
+		policyHostLower := strings.ToLower(policyHost)
+		if strings.HasPrefix(policyHostLower, "www.") {
+			policyHost = policyHost[len("www."):]
+			headers["X-Policy-Host"] = policyHost
+		}
+	}
+
+	// Use policy host for lookups, fallback to original host if policy host not provided
+	host := policyHost
+	if host == "" {
+		host = originalHost
+	}
 
 	if host == "" || uri == "" || method == "" {
 		traceID := e.getTraceID(headers)
 		missingHeaders := []string{}
 		if host == "" {
-			missingHeaders = append(missingHeaders, "X-Original-Host")
+			if policyHost == "" {
+				missingHeaders = append(missingHeaders, "X-Policy-Host")
+			}
+			if originalHost == "" {
+				missingHeaders = append(missingHeaders, "X-Original-Host")
+			}
 		}
 		if uri == "" {
 			missingHeaders = append(missingHeaders, "X-Original-Uri")
@@ -86,7 +107,7 @@ func (e *Engine) Check(ctx context.Context, headers map[string]string) (*Decisio
 	// Track total latency from the start
 	totalStartTime := time.Now()
 
-	// 3. Resolve policy for host
+	// 3. Resolve policy for host (using normalized policy host)
 	hostLower := strings.ToLower(host)
 	policy, err := e.cache.Get(hostLower)
 	if err != nil {
@@ -343,6 +364,10 @@ func (e *Engine) buildKillswitchHeaders(originalHeaders map[string]string, trace
 
 	// Required canonical headers
 	headers["X-Original-Host"] = originalHeaders["X-Original-Host"]
+	// Send normalized policy host to downstream services
+	if policyHost := originalHeaders["X-Policy-Host"]; policyHost != "" {
+		headers["X-Policy-Host"] = policyHost
+	}
 	headers["X-Original-Uri"] = originalHeaders["X-Original-Uri"]
 	headers["X-Original-Method"] = originalHeaders["X-Original-Method"]
 
@@ -372,6 +397,10 @@ func (e *Engine) buildGatekeeperHeaders(originalHeaders map[string]string, trace
 
 	// Required canonical headers
 	headers["X-Original-Host"] = originalHeaders["X-Original-Host"]
+	// Send normalized policy host to downstream services
+	if policyHost := originalHeaders["X-Policy-Host"]; policyHost != "" {
+		headers["X-Policy-Host"] = policyHost
+	}
 	headers["X-Original-Uri"] = originalHeaders["X-Original-Uri"]
 	headers["X-Original-Method"] = originalHeaders["X-Original-Method"]
 

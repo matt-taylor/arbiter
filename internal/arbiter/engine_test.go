@@ -92,6 +92,37 @@ func TestEngine_Check_MissingHeaders(t *testing.T) {
 	}
 }
 
+func TestEngine_Check_MissingHostHeaders(t *testing.T) {
+	cache := newMockCache()
+	client := downstream.NewClient("http://localhost:9090", "http://localhost:3000", 1000, 1000)
+	engine := NewEngine(cache, client, "", "")
+
+	headers := map[string]string{
+		// Missing both X-Original-Host and X-Policy-Host
+		"X-Original-Uri":    "/path",
+		"X-Original-Method": "GET",
+	}
+
+	decision, err := engine.Check(context.Background(), headers)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if decision.Status != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", decision.Status)
+	}
+	if decision.Decision != "error" {
+		t.Errorf("expected decision 'error', got '%s'", decision.Decision)
+	}
+	if decision.Reason != "missing required header" {
+		t.Errorf("expected reason 'missing required header', got '%s'", decision.Reason)
+	}
+	// Should report both headers as missing
+	if len(decision.MissingHeaders) < 2 {
+		t.Errorf("expected at least 2 missing headers, got %d", len(decision.MissingHeaders))
+	}
+}
+
 func TestEngine_Check_ForcedConstraints(t *testing.T) {
 	cache := newMockCache()
 	client := downstream.NewClient("http://localhost:9090", "http://localhost:3000", 1000, 1000)
@@ -443,5 +474,117 @@ func TestEngine_Check_TraceID_Generation(t *testing.T) {
 	}
 	if len(decision.TraceID) < 10 {
 		t.Error("expected trace ID to be a reasonable length")
+	}
+}
+
+func TestEngine_Check_PolicyHost(t *testing.T) {
+	cache := newMockCache()
+	client := downstream.NewClient("http://localhost:9090", "http://localhost:3000", 1000, 1000)
+	engine := NewEngine(cache, client, "", "")
+
+	// Create policy for policy-host.com
+	policy := &store.HostPolicy{
+		Host:                "policy-host.com",
+		KillswitchRequired:  false,
+		GatekeeperRequired:  false,
+	}
+	cache.policies["policy-host.com"] = policy
+
+	headers := map[string]string{
+		"X-Original-Host":   "original-host.com",
+		"X-Policy-Host":     "policy-host.com",
+		"X-Original-Uri":    "/path",
+		"X-Original-Method": "GET",
+	}
+
+	decision, err := engine.Check(context.Background(), headers)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should use policy-host.com for lookup, not original-host.com
+	if decision.Status != http.StatusOK {
+		t.Errorf("expected status 200, got %d", decision.Status)
+	}
+	if decision.Decision != "allow" {
+		t.Errorf("expected decision 'allow', got '%s'", decision.Decision)
+	}
+}
+
+func TestEngine_Check_PolicyHost_NormalizeWWW(t *testing.T) {
+	cache := newMockCache()
+	client := downstream.NewClient("http://localhost:9090", "http://localhost:3000", 1000, 1000)
+	engine := NewEngine(cache, client, "", "")
+
+	// Create policy for example.com (without www.)
+	policy := &store.HostPolicy{
+		Host:                "example.com",
+		KillswitchRequired:  false,
+		GatekeeperRequired:  false,
+	}
+	cache.policies["example.com"] = policy
+
+	headers := map[string]string{
+		"X-Original-Host":   "original-host.com",
+		"X-Policy-Host":     "www.example.com",
+		"X-Original-Uri":    "/path",
+		"X-Original-Method": "GET",
+	}
+
+	decision, err := engine.Check(context.Background(), headers)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should normalize www.example.com to example.com and find the policy
+	if decision.Status != http.StatusOK {
+		t.Errorf("expected status 200, got %d", decision.Status)
+	}
+	if decision.Decision != "allow" {
+		t.Errorf("expected decision 'allow', got '%s'", decision.Decision)
+	}
+
+	// Verify www. was stripped from X-Policy-Host in headers
+	if headers["X-Policy-Host"] != "example.com" {
+		t.Errorf("expected X-Policy-Host to be normalized to 'example.com', got '%s'", headers["X-Policy-Host"])
+	}
+}
+
+func TestEngine_Check_PolicyHost_NormalizeWWW_CaseInsensitive(t *testing.T) {
+	cache := newMockCache()
+	client := downstream.NewClient("http://localhost:9090", "http://localhost:3000", 1000, 1000)
+	engine := NewEngine(cache, client, "", "")
+
+	// Create policy for example.com (without www.)
+	policy := &store.HostPolicy{
+		Host:                "example.com",
+		KillswitchRequired:  false,
+		GatekeeperRequired:  false,
+	}
+	cache.policies["example.com"] = policy
+
+	headers := map[string]string{
+		"X-Original-Host":   "original-host.com",
+		"X-Policy-Host":     "WWW.example.com",
+		"X-Original-Uri":    "/path",
+		"X-Original-Method": "GET",
+	}
+
+	decision, err := engine.Check(context.Background(), headers)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should normalize WWW.example.com to example.com (case-insensitive)
+	if decision.Status != http.StatusOK {
+		t.Errorf("expected status 200, got %d", decision.Status)
+	}
+	if decision.Decision != "allow" {
+		t.Errorf("expected decision 'allow', got '%s'", decision.Decision)
+	}
+
+	// Verify www. was stripped (preserving case of rest)
+	if headers["X-Policy-Host"] != "example.com" {
+		t.Errorf("expected X-Policy-Host to be normalized to 'example.com', got '%s'", headers["X-Policy-Host"])
 	}
 }
