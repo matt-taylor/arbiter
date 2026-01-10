@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 )
@@ -129,20 +128,6 @@ func (c *Client) AuthorizeGatekeeper(ctx context.Context, headers map[string]str
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	// #region agent log
-	if logFile, err := os.OpenFile("/Users/matthewtaylor/Projects/proxmox/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-		cookieVal := req.Header.Get("Cookie")
-		if cookieVal == "" {
-			cookieVal = "NOT_PRESENT"
-		}
-		cookiePreview := cookieVal
-		if len(cookieVal) > 50 {
-			cookiePreview = cookieVal[:50]
-		}
-		logFile.WriteString(fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"client.go:130","message":"Cookie header being sent to Gatekeeper","data":{"cookie_present":%t,"cookie_value_preview":"%s","url":"%s"},"timestamp":%d}`+"\n", cookieVal != "NOT_PRESENT", cookiePreview, url, time.Now().UnixMilli()))
-		logFile.Close()
-	}
-	// #endregion
 
 	// Track latency
 	startTime := time.Now()

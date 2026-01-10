@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -214,35 +213,7 @@ func (e *Engine) Check(ctx context.Context, headers map[string]string) (*Decisio
 
 	// 5. Check Gatekeeper if required
 	if gatekeeperRequired {
-		// #region agent log
-		if logFile, err := os.OpenFile("/Users/matthewtaylor/Projects/proxmox/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-			cookieVal := headers["Cookie"]
-			if cookieVal == "" {
-				cookieVal = "NOT_PRESENT"
-			}
-			cookiePreview := cookieVal
-			if len(cookieVal) > 50 {
-				cookiePreview = cookieVal[:50]
-			}
-			logFile.WriteString(fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"engine.go:216","message":"Cookie in originalHeaders before buildGatekeeperHeaders","data":{"cookie_present":%t,"cookie_value_preview":"%s"},"timestamp":%d}`+"\n", cookieVal != "NOT_PRESENT", cookiePreview, time.Now().UnixMilli()))
-			logFile.Close()
-		}
-		// #endregion
 		gkHeaders := e.buildGatekeeperHeaders(headers, traceID)
-		// #region agent log
-		if logFile, err := os.OpenFile("/Users/matthewtaylor/Projects/proxmox/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-			cookieVal := gkHeaders["Cookie"]
-			if cookieVal == "" {
-				cookieVal = "NOT_PRESENT"
-			}
-			cookiePreview := cookieVal
-			if len(cookieVal) > 50 {
-				cookiePreview = cookieVal[:50]
-			}
-			logFile.WriteString(fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"engine.go:217","message":"Cookie in gkHeaders after buildGatekeeperHeaders","data":{"cookie_present":%t,"cookie_value_preview":"%s"},"timestamp":%d}`+"\n", cookieVal != "NOT_PRESENT", cookiePreview, time.Now().UnixMilli()))
-			logFile.Close()
-		}
-		// #endregion
 		gkResp, err := e.client.AuthorizeGatekeeper(ctx, gkHeaders)
 		if err != nil {
 			// Fail closed on error/timeout, but capture latency if available
