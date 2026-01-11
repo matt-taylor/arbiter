@@ -3,11 +3,6 @@ pack: arbiter
 common_domains:
   - lan.home.arpa
   - domostack.me
-  - local.arpa
-  - lan.arpa
-  - local.arpa
-  - lan.arpa
-  - local.arpa
 
 policies:
   - key: arbiter
@@ -40,7 +35,7 @@ policies:
     description: Home assistant is a home automation platform
     required_services: ["killswitch"]
     expand_common_domains: true
-    subdomain: echo
+    subdomain: ha
 
   - key: gatekeeper
     name: Gatekeeper Authorization Engine
