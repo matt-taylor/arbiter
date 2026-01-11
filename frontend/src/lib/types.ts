@@ -6,6 +6,13 @@ export interface HostPolicy {
   notes?: string | null
   created_at: string
   updated_at: string
+  managed?: boolean
+  managed_pack?: string | null
+  managed_key?: string | null
+  managed_version?: number | null
+  managed_name?: string | null
+  managed_description?: string | null
+  managed_at?: string | null
 }
 
 export interface EffectivePolicy {

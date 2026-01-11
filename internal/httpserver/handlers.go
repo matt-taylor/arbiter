@@ -191,6 +191,28 @@ func (h *Handlers) HandleUpdatePolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if policy exists and is managed
+	existing, err := h.store.GetByID(id)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to get policy")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if existing == nil {
+		http.Error(w, "Policy not found", http.StatusNotFound)
+		return
+	}
+
+	// Enforce immutability for managed policies
+	if existing.Managed {
+		packName := "unknown"
+		if existing.ManagedPack != nil {
+			packName = *existing.ManagedPack
+		}
+		http.Error(w, fmt.Sprintf("managed by pack %s, edit YAML and re-apply", packName), http.StatusConflict)
+		return
+	}
+
 	var policy store.HostPolicy
 	if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -224,6 +246,28 @@ func (h *Handlers) HandleDeletePolicy(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid policy ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if policy exists and is managed
+	existing, err := h.store.GetByID(id)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to get policy")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if existing == nil {
+		http.Error(w, "Policy not found", http.StatusNotFound)
+		return
+	}
+
+	// Enforce immutability for managed policies
+	if existing.Managed {
+		packName := "unknown"
+		if existing.ManagedPack != nil {
+			packName = *existing.ManagedPack
+		}
+		http.Error(w, fmt.Sprintf("managed by pack %s, edit YAML and re-apply", packName), http.StatusConflict)
 		return
 	}
 

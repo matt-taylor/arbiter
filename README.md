@@ -30,6 +30,7 @@ NGINX Request → Arbiter → Policy Cache → SQLite DB
 - **Thread-Safe Caching**: In-memory policy cache with 10-minute TTL, invalidate-on-write
 - **Forced Constraints**: Prevents recursion by forcing killswitch/gatekeeper hosts to disable their own checks
 - **No Defaults**: If a host has no policy, it's allowed (no checks required)
+- **Policy Packs**: Declarative YAML-based policy management with immutability guarantees
 
 ## Installation
 
@@ -96,7 +97,9 @@ GATEKEEPER_BASE_URL=http://127.0.0.1:3000 \
 
 ### Database Setup
 
-The database is automatically migrated on startup. The first migration creates the `host_policies` table.
+The database is automatically migrated on startup. Migrations include:
+- `000001_create_host_policies.up.sql` - Creates the `host_policies` table
+- `000002_add_managed_fields_to_host_policies.up.sql` - Adds managed policy metadata fields
 
 ## API Endpoints
 
@@ -186,6 +189,8 @@ Update a policy.
 Delete a policy.
 
 **Response:** `204 No Content`
+
+**Note:** Managed policies (created via policy packs) cannot be updated or deleted via the API. Attempts will return `409 Conflict` with an error message indicating the policy is managed by a pack.
 
 #### `GET /api/v1/effective?host=example.com`
 
@@ -283,6 +288,127 @@ Test endpoint for evaluating authorization decisions. Always returns HTTP 200 wi
 
 **Note:** This endpoint uses your current session cookies (if authenticated) for Gatekeeper checks, making it useful for testing authorization decisions in the UI.
 
+## Policy Packs
+
+Policy packs allow you to manage host policies declaratively using YAML files. Policies defined in packs are **immutable** via the API and UI - they can only be modified by editing the YAML file and re-applying the pack.
+
+### Features
+
+- **Declarative Management**: Define policies in YAML files
+- **Idempotent Application**: Safe to re-apply multiple times
+- **Collision Detection**: Prevents conflicts between pack-managed and manually-managed policies
+- **Domain Expansion**: Generate policies for multiple domains using `common_domains`
+- **Anti-Recursion**: Automatically enforces constraints to prevent service recursion
+- **Versioning**: Track pack versions and apply times
+
+### YAML Schema
+
+```yaml
+version: 1                    # Pack version (integer)
+pack: arbiter                # Pack name (string)
+common_domains:              # List of domains for expansion
+  - home.arpa
+  - domostack.me
+
+policies:
+  - key: policy-key           # Stable identifier (required)
+    name: Policy Name         # Human-readable name (required)
+    description: Optional description
+    required_services:        # List of required services (required)
+      - killswitch
+      - gatekeeper
+    # Either specify explicit hosts:
+    hosts:
+      - api.example.com
+      - api2.example.com
+    # OR use domain expansion:
+    expand_common_domains: true
+    subdomain: api            # Creates api.home.arpa, api.domostack.me
+```
+
+### Policy Specification
+
+Each policy must specify either:
+- **Explicit hosts**: Use the `hosts` field with a list of FQDNs
+- **Domain expansion**: Use `expand_common_domains: true` with a `subdomain` field
+
+When using domain expansion, policies are created for each domain in `common_domains` with the specified subdomain prefix.
+
+### Required Services
+
+The `required_services` field accepts:
+- `killswitch` - Requires Killswitch check
+- `gatekeeper` - Requires Gatekeeper check
+- Both can be specified for policies requiring both services
+- Empty array `[]` means no services required (allow all)
+
+### Applying Policy Packs
+
+Use the CLI command to apply a policy pack:
+
+```bash
+arbiter apply-pack --file /path/to/pack.yml
+```
+
+The command will:
+1. Parse and validate the YAML file
+2. Expand policies into host-level entries
+3. Apply anti-recursion constraints
+4. Upsert policies in a transaction
+5. Delete policies from the pack that are no longer present
+6. Invalidate the policy cache
+
+**Example:**
+```bash
+arbiter apply-pack --file config/packs/arbiter.yml
+```
+
+### Resetting the Database
+
+To completely reset the database (delete all data and recreate schema):
+
+```bash
+arbiter nuke-db
+```
+
+This command will:
+1. Show a warning with the database path
+2. Require typing `yes` to confirm
+3. Delete the database file (and WAL/SHM files if present)
+4. Re-run migrations to create a fresh database
+
+**Warning:** This permanently deletes all policies. This action cannot be undone.
+
+**Example:**
+```bash
+DATABASE_URL=sqlite:///tmp/arbiter.db arbiter nuke-db
+```
+
+### Managed vs Unmanaged Policies
+
+- **Managed Policies**: Created via policy packs. Shown with a "Managed" badge in the UI. Cannot be edited or deleted via API/UI.
+- **Unmanaged Policies**: Created manually via API or UI. Fully editable and deletable.
+
+**Collision Rules:**
+- A host cannot be both managed and unmanaged
+- A host cannot be managed by multiple packs
+- Pack apply will fail with a clear error if collisions are detected
+
+### Anti-Recursion Constraints
+
+When applying packs, Arbiter automatically enforces:
+- If `host == KILLSWITCH_PUBLIC_HOST` → `killswitch_required` is forced to `false`
+- If `host == GATEKEEPER_PUBLIC_HOST` → `gatekeeper_required` is forced to `false`
+
+This prevents infinite recursion where services try to check themselves.
+
+### Example Policy Pack
+
+See `config/packs/arbiter.yml` for a complete example with:
+- Multiple policy types
+- Both explicit hosts and domain expansion
+- Various service requirement combinations
+
 ### Health Checks
 
 #### `GET /healthz`
@@ -353,8 +479,11 @@ arbiter/
 │   ├── policycache/      # Thread-safe policy cache
 │   ├── arbiter/          # Decision engine
 │   ├── downstream/       # Killswitch/Gatekeeper clients
-│   └── httpserver/       # HTTP server and handlers
+│   ├── httpserver/       # HTTP server and handlers
+│   └── pack/             # Policy pack parsing and application
 ├── migrations/           # Database migrations
+├── config/
+│   └── packs/            # Policy pack YAML files
 ├── frontend/             # React SPA
 └── Makefile              # Build automation
 ```

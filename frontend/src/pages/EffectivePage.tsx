@@ -8,6 +8,7 @@ import Button from '@/components/ui/button'
 import Input from '@/components/ui/input'
 import Badge from '@/components/ui/badge'
 import Loading from '@/components/ui/loading'
+import Tooltip from '@/components/ui/tooltip'
 
 export default function EffectivePage() {
   const [host, setHost] = useState('')
@@ -119,17 +120,25 @@ export default function EffectivePage() {
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Killswitch Required:</span>
               {policy.killswitch_required ? (
-                <Badge variant="success">Required</Badge>
+                <Tooltip content="Killswitch service is required for this host. Requests must pass through Killswitch before proceeding.">
+                  <Badge variant="success">Required</Badge>
+                </Tooltip>
               ) : (
-                <Badge variant="default">Not Required</Badge>
+                <Tooltip content="Killswitch service is not required for this host. Requests can proceed without Killswitch checks.">
+                  <Badge variant="danger">－</Badge>
+                </Tooltip>
               )}
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Gatekeeper Required:</span>
               {policy.gatekeeper_required ? (
-                <Badge variant="success">Required</Badge>
+                <Tooltip content="Gatekeeper service is required for this host. Requests must pass through Gatekeeper authorization before proceeding.">
+                  <Badge variant="success">Required</Badge>
+                </Tooltip>
               ) : (
-                <Badge variant="default">Not Required</Badge>
+                <Tooltip content="Gatekeeper service is not required for this host. Requests can proceed without Gatekeeper authorization checks.">
+                  <Badge variant="danger">－</Badge>
+                </Tooltip>
               )}
             </div>
             <div className="flex items-center justify-between">

@@ -79,3 +79,25 @@ func getEnvInt(key string, defaultValue int) int {
 	}
 	return intValue
 }
+
+// LoadMinimal loads minimal configuration for CLI commands (like apply-pack)
+// Only requires DATABASE_URL; other fields are optional
+func LoadMinimal() (*Config, error) {
+	cfg := &Config{}
+
+	// Only database URL is required for pack operations
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+	cfg.DatabaseURL = databaseURL
+
+	// Optional forced host configs (for anti-recursion constraints)
+	cfg.KillswitchPublicHost = os.Getenv("KILLSWITCH_PUBLIC_HOST")
+	cfg.GatekeeperPublicHost = os.Getenv("GATEKEEPER_PUBLIC_HOST")
+
+	// Set defaults for other fields (not used in pack operations)
+	cfg.CacheTTL = 600 * time.Second
+
+	return cfg, nil
+}

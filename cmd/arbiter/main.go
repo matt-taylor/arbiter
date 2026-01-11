@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,12 +19,23 @@ import (
 	"github.com/domostack/arbiter/internal/config"
 	"github.com/domostack/arbiter/internal/downstream"
 	"github.com/domostack/arbiter/internal/httpserver"
+	"github.com/domostack/arbiter/internal/pack"
 	"github.com/domostack/arbiter/internal/policycache"
 	"github.com/domostack/arbiter/internal/store"
 	"github.com/rs/zerolog"
 )
 
 func main() {
+	// Check for CLI subcommands
+	if len(os.Args) > 1 && os.Args[1] == "apply-pack" {
+		applyPackCommand()
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "nuke-db" {
+		nukeDBCommand()
+		return
+	}
+
 	// Initialize logger
 	logger := zerolog.New(os.Stdout).With().
 		Timestamp().
@@ -205,4 +218,171 @@ func runMigrations(databaseURL string, logger zerolog.Logger) error {
 	}
 
 	return nil
+}
+
+// applyPackCommand handles the apply-pack CLI subcommand
+func applyPackCommand() {
+	// Create a new flag set for the apply-pack subcommand
+	// Skip os.Args[0] (program name) and os.Args[1] ("apply-pack")
+	fs := flag.NewFlagSet("apply-pack", flag.ExitOnError)
+	var packFile string
+	fs.StringVar(&packFile, "file", "", "Path to policy pack YAML file (required)")
+
+	// Parse only the remaining arguments (skip program name and "apply-pack")
+	if len(os.Args) < 3 {
+		fmt.Fprintf(os.Stderr, "Error: --file flag is required\n")
+		fmt.Fprintf(os.Stderr, "Usage: arbiter apply-pack --file /path/to/pack.yml\n")
+		os.Exit(1)
+	}
+
+	fs.Parse(os.Args[2:])
+
+	if packFile == "" {
+		fmt.Fprintf(os.Stderr, "Error: --file flag is required\n")
+		fmt.Fprintf(os.Stderr, "Usage: arbiter apply-pack --file /path/to/pack.yml\n")
+		os.Exit(1)
+	}
+
+	// Initialize logger
+	logger := zerolog.New(os.Stdout).With().
+		Timestamp().
+		Logger()
+
+	// Load minimal configuration (only DATABASE_URL required for pack operations)
+	cfg, err := config.LoadMinimal()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to load configuration")
+	}
+
+	// Run database migrations
+	if err := runMigrations(cfg.DatabaseURL, logger); err != nil {
+		logger.Fatal().Err(err).Msg("failed to run migrations")
+	}
+
+	// Initialize store
+	dbStore, err := store.NewSQLiteStore(cfg.DatabaseURL)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to initialize store")
+	}
+	defer dbStore.Close()
+
+	// Initialize cache
+	cache := policycache.NewCache(dbStore, cfg.CacheTTL)
+
+	// Parse pack file
+	logger.Info().Str("file", packFile).Msg("parsing policy pack")
+	policyPack, err := pack.ParsePackFile(packFile)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to parse policy pack")
+	}
+
+	logger.Info().
+		Str("pack", policyPack.Pack).
+		Int("version", policyPack.Version).
+		Int("policies", len(policyPack.Policies)).
+		Msg("pack parsed successfully")
+
+	// Apply pack
+	logger.Info().Msg("applying policy pack")
+	if err := pack.ApplyPack(
+		dbStore,
+		cache,
+		policyPack,
+		cfg.KillswitchPublicHost,
+		cfg.GatekeeperPublicHost,
+	); err != nil {
+		logger.Fatal().Err(err).Msg("failed to apply policy pack")
+	}
+
+	logger.Info().Msg("policy pack applied successfully")
+}
+
+// nukeDBCommand handles the nuke-db CLI subcommand
+func nukeDBCommand() {
+	// Initialize logger
+	logger := zerolog.New(os.Stdout).With().
+		Timestamp().
+		Logger()
+
+	// Load minimal configuration (only DATABASE_URL required)
+	cfg, err := config.LoadMinimal()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to load configuration")
+	}
+
+	// Parse database path
+	dbPath := cfg.DatabaseURL
+	if strings.HasPrefix(dbPath, "sqlite:///") {
+		dbPath = strings.TrimPrefix(dbPath, "sqlite:///")
+	} else if strings.HasPrefix(dbPath, "file:") {
+		dbPath = strings.TrimPrefix(dbPath, "file:")
+	}
+
+	// Convert to absolute path
+	dbPath, err = filepath.Abs(dbPath)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to get absolute database path")
+	}
+
+	// Check if database exists
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		logger.Info().Str("path", dbPath).Msg("database does not exist, nothing to delete")
+		return
+	}
+
+	// Confirmation prompt
+	fmt.Fprintf(os.Stderr, "\n⚠️  WARNING: This will DELETE the entire database at:\n   %s\n\n", dbPath)
+	fmt.Fprintf(os.Stderr, "This action cannot be undone. All policies will be permanently deleted.\n\n")
+	fmt.Fprintf(os.Stderr, "Type 'yes' to confirm: ")
+	
+	var confirmation string
+	fmt.Scanln(&confirmation)
+	
+	if confirmation != "yes" {
+		fmt.Fprintf(os.Stderr, "\nAborted. Database was not deleted.\n")
+		os.Exit(0)
+	}
+
+	// Close any existing connections by attempting to open and close
+	// This ensures the file is not locked
+	dbStore, err := store.NewSQLiteStore(cfg.DatabaseURL)
+	if err == nil {
+		dbStore.Close()
+	}
+
+	// Delete the database file
+	logger.Info().Str("path", dbPath).Msg("deleting database file")
+	if err := os.Remove(dbPath); err != nil {
+		logger.Fatal().Err(err).Msg("failed to delete database file")
+	}
+
+	// Also delete WAL and SHM files if they exist
+	walPath := dbPath + "-wal"
+	shmPath := dbPath + "-shm"
+	if _, err := os.Stat(walPath); err == nil {
+		os.Remove(walPath)
+	}
+	if _, err := os.Stat(shmPath); err == nil {
+		os.Remove(shmPath)
+	}
+
+	logger.Info().Msg("database deleted successfully")
+
+	// Re-run migrations to create a fresh database
+	logger.Info().Msg("creating fresh database with migrations")
+	if err := runMigrations(cfg.DatabaseURL, logger); err != nil {
+		logger.Fatal().Err(err).Msg("failed to run migrations")
+	}
+
+	// Invalidate cache to ensure any running server instances reload data
+	// Create a temporary store and cache instance to invalidate
+	tempStore, err := store.NewSQLiteStore(cfg.DatabaseURL)
+	if err == nil {
+		cache := policycache.NewCache(tempStore, cfg.CacheTTL)
+		cache.Invalidate()
+		logger.Info().Msg("cache invalidated")
+		tempStore.Close()
+	}
+
+	logger.Info().Msg("database reset complete")
 }

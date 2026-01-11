@@ -7,6 +7,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.32.0
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.29.10
 )
 

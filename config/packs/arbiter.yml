@@ -1,0 +1,56 @@
+version: 1
+pack: arbiter
+common_domains:
+  - lan.home.arpa
+  - domostack.me
+  - local.arpa
+  - lan.arpa
+  - local.arpa
+  - lan.arpa
+  - local.arpa
+
+policies:
+  - key: arbiter
+    name: Arbiter decision Gateway
+    description: All request go throuugh arbiter to decide if they can proceed or not
+    required_services:
+      - gatekeeper
+    expand_common_domains: true
+    subdomain: arbiter
+
+  - key: killswitch
+    name: Killswitch Engine
+    description: Killswitch service can block indivudal paths or entire hosts
+    required_services:
+      - gatekeeper
+    expand_common_domains: true
+    subdomain: killswitch
+
+  - key: echo
+    name: Echo
+    description: Echo service is a dummy serivce that just echoes back the request.
+    required_services:
+      - gatekeeper
+      - killswitch
+    expand_common_domains: true
+    subdomain: echo
+
+  - key: homeassistant
+    name: Home Assistant
+    description: Home assistant is a home automation platform
+    required_services: ["killswitch"]
+    expand_common_domains: true
+    subdomain: echo
+
+  - key: gatekeeper
+    name: Gatekeeper Authorization Engine
+    description: Gatekeeper service can block requests based on user identity
+    required_services: []
+    expand_common_domains: true
+    subdomain: gatekeeper
+
+  - key: doublefloor
+    name: Doublefloor
+    description: Doublefloor
+    required_services: ["killswitch"]
+    hosts: ["doublefloor.me"]
