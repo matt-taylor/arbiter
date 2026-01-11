@@ -1,6 +1,5 @@
 import { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import Badge from './ui/badge'
 
 interface TableCardProps {
   children: ReactNode
