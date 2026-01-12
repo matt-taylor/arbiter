@@ -37,6 +37,34 @@ policies:
     expand_common_domains: true
     subdomain: ha
 
+  - key: lgtm
+    name: Observability platform
+    description: LGTM is the observability platform for the domostack. Collects logs and metrics from all LXC's
+    required_services: ["killswitch"]
+    expand_common_domains: true
+    subdomain: lgtm
+
+  - key: proxmox
+    name: Proxmox
+    description: Proxmox is the virtualization platform for the domostack. It manages the virtual machines and containers.
+    required_services: ["killswitch"]
+    expand_common_domains: true
+    subdomain: proxmox
+
+  - key: tandoor
+    name: Tandoor
+    description: Tandoor is the recipe management platform for the domostack. It manages the recipes and ingredients.
+    required_services: ["killswitch"]
+    expand_common_domains: true
+    subdomain: tandoor
+
+  - key: short
+    name: Short
+    description: Short is the URL shortening platform for the domostack. It shortens the URLs and redirects to the original URL.
+    required_services: ["killswitch"]
+    expand_common_domains: true
+    subdomain: short
+
   - key: gatekeeper
     name: Gatekeeper Authorization Engine
     description: Gatekeeper service can block requests based on user identity

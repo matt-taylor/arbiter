@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-ro
 import { ThemeProvider } from './contexts/ThemeProvider'
 import { ToastProvider, ToastContainer } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import ArbiterLayout from './components/ArbiterLayout'
 import { useToast } from './hooks/useToast'
 import PoliciesPage from './pages/PoliciesPage'
 import EffectivePage from './pages/EffectivePage'
@@ -33,11 +34,13 @@ function App() {
         <ToastProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<PoliciesPage />} />
-              <Route path="/effective" element={<EffectivePage />} />
-              <Route path="/tester" element={<TesterPage />} />
-              {/* Catch-all route: redirect non-existent routes to root */}
-              <Route path="*" element={<NotFound />} />
+              <Route element={<ArbiterLayout />}>
+                <Route path="/" element={<PoliciesPage />} />
+                <Route path="/effective" element={<EffectivePage />} />
+                <Route path="/tester" element={<TesterPage />} />
+                {/* Catch-all route: redirect non-existent routes to root */}
+                <Route path="*" element={<NotFound />} />
+              </Route>
             </Routes>
             <ToastContainer />
           </BrowserRouter>

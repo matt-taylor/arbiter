@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { Search, Sun, Moon, Monitor } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { policiesApi } from '@/lib/api'
 import type { EffectivePolicy } from '@/lib/types'
 import { useToast } from '@/hooks/useToast'
-import { useTheme } from '@/hooks/useTheme'
 import Button from '@/components/ui/button'
 import Input from '@/components/ui/input'
 import Badge from '@/components/ui/badge'
@@ -15,7 +14,6 @@ export default function EffectivePage() {
   const [loading, setLoading] = useState(false)
   const [policy, setPolicy] = useState<EffectivePolicy | null>(null)
   const { error } = useToast()
-  const { theme, setTheme } = useTheme()
 
   const handleCheck = async () => {
     if (!host.trim()) {
@@ -36,56 +34,8 @@ export default function EffectivePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img
-              src="/favicon.svg"
-              alt="Arbiter"
-              className="w-8 h-8"
-            />
-            <h1 className="text-2xl font-bold">Arbiter</h1>
-            {/* Theme Selector */}
-            <div className="flex gap-1 border rounded-md p-1 bg-background ml-2">
-              <Button
-                variant={theme === 'light' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setTheme('light')}
-                className="h-8 w-8 p-0"
-                aria-label="Light theme"
-                title="Light"
-              >
-                <Sun className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={theme === 'dark' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setTheme('dark')}
-                className="h-8 w-8 p-0"
-                aria-label="Dark theme"
-                title="Dark"
-              >
-                <Moon className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={theme === 'system' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setTheme('system')}
-                className="h-8 w-8 p-0"
-                aria-label="System theme"
-                title="System"
-              >
-                <Monitor className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
-        <h2 className="text-2xl font-bold mb-6">Effective Policy Check</h2>
+    <div>
+      <h1 className="text-2xl font-bold mb-6">Effective Policy Check</h1>
 
       <div className="bg-card rounded-lg border p-6 mb-6">
         <div className="space-y-4">
@@ -170,7 +120,6 @@ export default function EffectivePage() {
           </div>
         </div>
       )}
-      </div>
     </div>
   )
 }

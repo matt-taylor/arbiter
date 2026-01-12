@@ -1,20 +1,16 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { policiesApi } from '@/lib/api'
 import type { TestCheckResponse } from '@/lib/types'
 import { useToast } from '@/hooks/useToast'
-import { useTheme } from '@/hooks/useTheme'
 import Button from '@/components/ui/button'
 import Input from '@/components/ui/input'
 import Select from '@/components/ui/select'
 import Badge from '@/components/ui/badge'
 import Loading from '@/components/ui/loading'
-import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, Sun, Moon, Monitor } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 
 export default function TesterPage() {
-  const navigate = useNavigate()
   const { error: showError } = useToast()
-  const { theme, setTheme } = useTheme()
   const [host, setHost] = useState('')
   const [method, setMethod] = useState('GET')
   const [uri, setUri] = useState('')
@@ -123,55 +119,8 @@ export default function TesterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img
-              src="/favicon.svg"
-              alt="Arbiter"
-              className="w-8 h-8"
-            />
-            <h1 className="text-2xl font-bold">Arbiter Tester</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Policies
-            </Button>
-            {/* Theme Selector */}
-            <div className="flex gap-1 border rounded-md p-1 bg-background">
-              <button
-                onClick={() => setTheme('light')}
-                className={`p-1.5 rounded ${theme === 'light' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-                aria-label="Light theme"
-              >
-                <Sun className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setTheme('dark')}
-                className={`p-1.5 rounded ${theme === 'dark' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-                aria-label="Dark theme"
-              >
-                <Moon className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setTheme('system')}
-                className={`p-1.5 rounded ${theme === 'system' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-                aria-label="System theme"
-              >
-                <Monitor className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
+    <div>
+      <h1 className="text-2xl font-bold mb-6">Arbiter Tester</h1>
         {/* Form Section */}
         <div className="border rounded-lg p-6 bg-card mb-6">
           <h2 className="text-xl font-semibold mb-4">Test Arbiter Check</h2>
@@ -407,7 +356,6 @@ export default function TesterPage() {
             </div>
           </div>
         )}
-      </div>
     </div>
   )
 }

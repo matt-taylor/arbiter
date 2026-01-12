@@ -1,10 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, Edit, Trash2, Search, Sun, Moon, Monitor, TestTube, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { policiesApi } from '@/lib/api'
 import type { HostPolicy, CreatePolicyRequest } from '@/lib/types'
 import { useToast } from '@/hooks/useToast'
-import { useTheme } from '@/hooks/useTheme'
 import Button from '@/components/ui/button'
 import Input from '@/components/ui/input'
 import Badge from '@/components/ui/badge'
@@ -14,7 +12,6 @@ import Tooltip from '@/components/ui/tooltip'
 import { TableCard, TableCardRow, TableCardActions } from '@/components/TableCard'
 
 export default function PoliciesPage() {
-  const navigate = useNavigate()
   const [policies, setPolicies] = useState<HostPolicy[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -29,7 +26,6 @@ export default function PoliciesPage() {
     notes: '',
   })
   const { success, error } = useToast()
-  const { theme, setTheme } = useTheme()
 
   useEffect(() => {
     loadPolicies()
@@ -172,74 +168,14 @@ export default function PoliciesPage() {
   }, [searchTerm])
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-card">
-        <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <img
-                src="/favicon.svg"
-                alt="Arbiter"
-                className="w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0"
-              />
-              <h1 className="text-lg sm:text-2xl font-bold truncate">Arbiter</h1>
-              {/* Theme Selector */}
-              <div className="flex gap-1 border rounded-md p-1 bg-background ml-1 sm:ml-2 flex-shrink-0">
-                <Button
-                  variant={theme === 'light' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setTheme('light')}
-                  className="h-7 w-7 sm:h-8 sm:w-8 p-0"
-                  aria-label="Light theme"
-                  title="Light"
-                >
-                  <Sun className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
-                <Button
-                  variant={theme === 'dark' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setTheme('dark')}
-                  className="h-7 w-7 sm:h-8 sm:w-8 p-0"
-                  aria-label="Dark theme"
-                  title="Dark"
-                >
-                  <Moon className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
-                <Button
-                  variant={theme === 'system' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setTheme('system')}
-                  className="h-7 w-7 sm:h-8 sm:w-8 p-0"
-                  aria-label="System theme"
-                  title="System"
-                >
-                  <Monitor className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
-              {/* Tester Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/tester')}
-                className="h-8 sm:h-9"
-              >
-                <TestTube className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Tester</span>
-              </Button>
-              <Button onClick={handleCreate} size="sm" className="h-8 sm:h-9">
-                <Plus className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Create Policy</span>
-                <span className="sm:hidden">Create</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Policies</h1>
+        <Button onClick={handleCreate} size="sm">
+          <Plus className="h-4 w-4 mr-2" />
+          Create Policy
+        </Button>
+      </div>
 
         <div className="mb-4">
           <div className="relative">
@@ -605,7 +541,6 @@ export default function PoliciesPage() {
             </div>
           </div>
         </Dialog>
-      </div>
     </div>
   )
 }
