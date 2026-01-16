@@ -96,7 +96,12 @@ func (c *Client) CheckKillswitch(ctx context.Context, headers map[string]string)
 	io.Copy(io.Discard, resp.Body)
 
 	// Parse latency from header if available, otherwise use measured latency
-	if latencyHeader := resp.Header.Get("X-Killswitch-Latency-Ms"); latencyHeader != "" {
+	// Try new header name first, fall back to old for compatibility
+	if latencyHeader := resp.Header.Get("X-Arbiter-Latency-KS"); latencyHeader != "" {
+		if parsed, err := strconv.ParseFloat(latencyHeader, 64); err == nil {
+			latencyMs = parsed
+		}
+	} else if latencyHeader := resp.Header.Get("X-Killswitch-Latency-Ms"); latencyHeader != "" {
 		if parsed, err := strconv.ParseFloat(latencyHeader, 64); err == nil {
 			latencyMs = parsed
 		}
@@ -148,7 +153,12 @@ func (c *Client) AuthorizeGatekeeper(ctx context.Context, headers map[string]str
 	io.Copy(io.Discard, resp.Body)
 
 	// Parse latency from header if available, otherwise use measured latency
-	if latencyHeader := resp.Header.Get("X-Gatekeeper-Latency-Ms"); latencyHeader != "" {
+	// Try new header name first, fall back to old for compatibility
+	if latencyHeader := resp.Header.Get("X-Arbiter-Latency-GK"); latencyHeader != "" {
+		if parsed, err := strconv.ParseFloat(latencyHeader, 64); err == nil {
+			latencyMs = parsed
+		}
+	} else if latencyHeader := resp.Header.Get("X-Gatekeeper-Latency-Ms"); latencyHeader != "" {
 		if parsed, err := strconv.ParseFloat(latencyHeader, 64); err == nil {
 			latencyMs = parsed
 		}

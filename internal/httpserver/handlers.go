@@ -107,7 +107,33 @@ func (h *Handlers) HandleCheck(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(k, v)
 	}
 
+	// Set latency headers
+	w.Header().Set("X-Arbiter-Latency-T", fmt.Sprintf("%.3f", decision.TotalLatencyMs))
+	if decision.KillswitchLatencyMs > 0 {
+		w.Header().Set("X-Arbiter-Latency-KS", fmt.Sprintf("%.3f", decision.KillswitchLatencyMs))
+	}
+	if decision.GatekeeperLatencyMs > 0 {
+		w.Header().Set("X-Arbiter-Latency-GK", fmt.Sprintf("%.3f", decision.GatekeeperLatencyMs))
+	}
+
+	// Build JSON response body with latency information
+	response := map[string]interface{}{
+		"decision":              decision.Decision,
+		"status":                decision.Status,
+		"reason":                decision.Reason,
+		"source":                decision.Source,
+		"policy":                decision.Policy,
+		"trace_id":              decision.TraceID,
+		"latency_ms":            decision.TotalLatencyMs, // Deprecated: use total_latency_ms
+		"total_latency_ms":      decision.TotalLatencyMs,
+		"killswitch_latency_ms": decision.KillswitchLatencyMs,
+		"gatekeeper_latency_ms": decision.GatekeeperLatencyMs,
+	}
+
+	// Set Content-Type header for JSON response
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(decision.Status)
+	json.NewEncoder(w).Encode(response)
 }
 
 // HandleListPolicies handles GET /api/v1/policies
