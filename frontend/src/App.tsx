@@ -8,6 +8,7 @@ import { useToast } from './hooks/useToast'
 import PoliciesPage from './pages/PoliciesPage'
 import EffectivePage from './pages/EffectivePage'
 import TesterPage from './pages/TesterPage'
+import TelemetryPage from './pages/TelemetryPage'
 
 function NotFound() {
   const navigate = useNavigate()
@@ -38,6 +39,7 @@ function App() {
                 <Route path="/" element={<PoliciesPage />} />
                 <Route path="/effective" element={<EffectivePage />} />
                 <Route path="/tester" element={<TesterPage />} />
+                <Route path="/telemetry" element={<TelemetryPage />} />
                 {/* Catch-all route: redirect non-existent routes to root */}
                 <Route path="*" element={<NotFound />} />
               </Route>

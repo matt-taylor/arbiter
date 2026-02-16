@@ -12,28 +12,31 @@ import (
 	"github.com/domostack/arbiter/internal/arbiter"
 	"github.com/domostack/arbiter/internal/policycache"
 	"github.com/domostack/arbiter/internal/store"
+	"github.com/domostack/arbiter/internal/telemetry"
 	"github.com/rs/zerolog"
 )
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
-	engine  *arbiter.Engine
-	cache   *policycache.Cache
-	store   store.Store
-	logger  zerolog.Logger
-	ksHost  string
-	gkHost  string
+	engine    *arbiter.Engine
+	cache     *policycache.Cache
+	store     store.Store
+	logger    zerolog.Logger
+	ksHost    string
+	gkHost    string
+	publisher telemetry.Publisher
 }
 
 // NewHandlers creates a new handlers instance
-func NewHandlers(engine *arbiter.Engine, cache *policycache.Cache, store store.Store, logger zerolog.Logger, killswitchPublicHost, gatekeeperPublicHost string) *Handlers {
+func NewHandlers(engine *arbiter.Engine, cache *policycache.Cache, store store.Store, logger zerolog.Logger, killswitchPublicHost, gatekeeperPublicHost string, publisher telemetry.Publisher) *Handlers {
 	return &Handlers{
-		engine: engine,
-		cache:  cache,
-		store:  store,
-		logger: logger,
-		ksHost: killswitchPublicHost,
-		gkHost: gatekeeperPublicHost,
+		engine:    engine,
+		cache:     cache,
+		store:     store,
+		logger:    logger,
+		ksHost:    killswitchPublicHost,
+		gkHost:    gatekeeperPublicHost,
+		publisher: publisher,
 	}
 }
 
@@ -52,9 +55,33 @@ func (h *Handlers) HandleCheck(w http.ResponseWriter, r *http.Request) {
 	decision, err := h.engine.Check(r.Context(), headers)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("decision engine error")
+		// Emit telemetry for engine errors too
+		h.publisher.Emit(telemetry.Event{
+			IP:             ClientIP(r),
+			HostRaw:        headers["X-Original-Host"],
+			Method:         headers["X-Original-Method"],
+			PathRaw:        telemetry.StripQuery(headers["X-Original-Uri"]),
+			Status:         http.StatusInternalServerError,
+			EngineDecision: "error",
+			Time:           time.Now(),
+		})
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	// Capture the exact status for both the response and telemetry (single source of truth)
+	status := decision.Status
+	defer func() {
+		h.publisher.Emit(telemetry.Event{
+			IP:             ClientIP(r),
+			HostRaw:        headers["X-Original-Host"],
+			Method:         headers["X-Original-Method"],
+			PathRaw:        telemetry.StripQuery(headers["X-Original-Uri"]),
+			Status:         status,
+			EngineDecision: decision.Decision,
+			Time:           time.Now(),
+		})
+	}()
 
 	// Log detailed decision result
 	method := headers["X-Original-Method"]
@@ -132,7 +159,7 @@ func (h *Handlers) HandleCheck(w http.ResponseWriter, r *http.Request) {
 
 	// Set Content-Type header for JSON response
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(decision.Status)
+	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(response)
 }
 

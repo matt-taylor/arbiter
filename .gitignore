@@ -81,3 +81,12 @@ Thumbs.db
 
 # Web directory (if used for serving)
 web/
+
+# Python venv (telemetry test script)
+scripts/.venv/
+
+# PID files (test harness)
+*.pid
+
+# Consumer binary
+/arbiter-telemetry-consumer

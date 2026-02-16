@@ -10,8 +10,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/domostack/arbiter/internal/arbiter"
+	"github.com/domostack/arbiter/internal/config"
 	"github.com/domostack/arbiter/internal/policycache"
 	"github.com/domostack/arbiter/internal/store"
+	"github.com/domostack/arbiter/internal/telemetry"
+	"github.com/domostack/arbiter/internal/telemetry/query"
 	"github.com/rs/zerolog"
 )
 
@@ -22,7 +25,8 @@ type Server struct {
 	logger     zerolog.Logger
 }
 
-// NewServer creates a new HTTP server
+// NewServer creates a new HTTP server.
+// telemetryRepo may be nil when the telemetry query API is disabled.
 func NewServer(
 	bindAddr string,
 	engine *arbiter.Engine,
@@ -31,8 +35,11 @@ func NewServer(
 	logger zerolog.Logger,
 	killswitchPublicHost, gatekeeperPublicHost string,
 	staticDir string,
+	publisher telemetry.Publisher,
+	telemetryRepo *query.Repository,
+	telemetryAPICfg config.TelemetryAPIConfig,
 ) *Server {
-	handlers := NewHandlers(engine, cache, store, logger, killswitchPublicHost, gatekeeperPublicHost)
+	handlers := NewHandlers(engine, cache, store, logger, killswitchPublicHost, gatekeeperPublicHost, publisher)
 
 	r := chi.NewRouter()
 
@@ -53,6 +60,27 @@ func NewServer(
 		r.Delete("/policies/{id}", handlers.HandleDeletePolicy)
 		r.Get("/effective", handlers.HandleEffective)
 		r.Post("/test/check", handlers.HandleTestCheck)
+
+		// Telemetry Query API (read-only, optional)
+		if telemetryRepo != nil {
+			// SECURITY: These endpoints expose internal traffic intelligence (top IPs,
+			// paths, request volumes). If Arbiter is publicly accessible, require
+			// upstream authentication (e.g. NGINX auth) or add auth middleware in a
+			// future phase (Phase 3.5). No RBAC is implemented now — rate limiting
+			// is the only abuse mitigation.
+			th := NewTelemetryHandlers(telemetryRepo, logger, telemetryAPICfg.MaxWindowMinutes, telemetryAPICfg.MaxLimit)
+			r.Route("/telemetry", func(r chi.Router) {
+				r.Use(TelemetryRateLimiter(10, 20, telemetryAPICfg.TrustProxyHeaders, logger))
+			r.Get("/hosts/{host}/top-ips", th.HandleTopIPs)
+			r.Get("/hosts/{host}/ips/{ip}/top-paths", th.HandleTopPaths)
+			r.Get("/hosts/{host}/summary", th.HandleSummary)
+
+			// Overview endpoints (Phase 3.5)
+			r.Get("/overview/top-hosts", th.HandleOverviewTopHosts)
+			r.Get("/overview/suspicious-scanners", th.HandleOverviewSuspiciousScanners)
+			r.Get("/overview/suspicious-sprayers", th.HandleOverviewSuspiciousSprayers)
+			})
+		}
 	})
 
 	// Health check endpoints

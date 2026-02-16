@@ -12,6 +12,7 @@ import (
 	"github.com/domostack/arbiter/internal/downstream"
 	"github.com/domostack/arbiter/internal/policycache"
 	"github.com/domostack/arbiter/internal/store"
+	"github.com/domostack/arbiter/internal/telemetry"
 	"github.com/rs/zerolog"
 )
 
@@ -54,7 +55,7 @@ func setupTestHandlers(t *testing.T) (*Handlers, store.Store) {
 	engine := arbiter.NewEngine(cache, client, "", "")
 	logger := zerolog.Nop()
 
-	handlers := NewHandlers(engine, cache, dbStore, logger, "", "")
+	handlers := NewHandlers(engine, cache, dbStore, logger, "", "", telemetry.NoopPublisher{})
 
 	return handlers, dbStore
 }

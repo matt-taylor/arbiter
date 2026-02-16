@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"os"
@@ -11,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/domostack/arbiter/internal/arbiter"
 	"github.com/domostack/arbiter/internal/config"
@@ -22,6 +23,8 @@ import (
 	"github.com/domostack/arbiter/internal/pack"
 	"github.com/domostack/arbiter/internal/policycache"
 	"github.com/domostack/arbiter/internal/store"
+	"github.com/domostack/arbiter/internal/telemetry"
+	"github.com/domostack/arbiter/internal/telemetry/query"
 	"github.com/rs/zerolog"
 )
 
@@ -96,6 +99,30 @@ func main() {
 		}
 	}
 
+	// Initialize telemetry publisher
+	publisher := telemetry.NewPublisher(cfg.Telemetry, logger)
+
+	// Initialize telemetry query API (optional, read-only MariaDB connection)
+	var telemetryRepo *query.Repository
+	if cfg.TelemetryAPI.Enabled {
+		telemetryDB, err := sql.Open("mysql", cfg.TelemetryAPI.DBDSN)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("failed to open telemetry API MariaDB connection")
+		}
+		telemetryDB.SetMaxOpenConns(5)
+		telemetryDB.SetMaxIdleConns(2)
+		telemetryDB.SetConnMaxIdleTime(30 * time.Second)
+		telemetryDB.SetConnMaxLifetime(5 * time.Minute)
+
+		ctx := context.Background()
+		if err := telemetryDB.PingContext(ctx); err != nil {
+			logger.Fatal().Err(err).Msg("cannot reach telemetry API MariaDB")
+		}
+		defer telemetryDB.Close() // main owns lifecycle
+		telemetryRepo = query.NewRepository(telemetryDB)
+		logger.Info().Msg("telemetry query API enabled (MariaDB connected)")
+	}
+
 	// Initialize HTTP server
 	server := httpserver.NewServer(
 		cfg.BindAddr,
@@ -106,6 +133,9 @@ func main() {
 		cfg.KillswitchPublicHost,
 		cfg.GatekeeperPublicHost,
 		staticDir,
+		publisher,
+		telemetryRepo,
+		cfg.TelemetryAPI,
 	)
 
 	// Setup graceful shutdown
@@ -140,6 +170,10 @@ func main() {
 	} else {
 		logger.Info().Msg("server shutdown complete")
 	}
+
+	// Close telemetry publisher after server is shut down.
+	// Close() signals the worker to stop immediately (no drain) and closes the Redis client.
+	publisher.Close()
 }
 
 // runMigrations runs database migrations
@@ -334,10 +368,10 @@ func nukeDBCommand() {
 	fmt.Fprintf(os.Stderr, "\n⚠️  WARNING: This will DELETE the entire database at:\n   %s\n\n", dbPath)
 	fmt.Fprintf(os.Stderr, "This action cannot be undone. All policies will be permanently deleted.\n\n")
 	fmt.Fprintf(os.Stderr, "Type 'yes' to confirm: ")
-	
+
 	var confirmation string
 	fmt.Scanln(&confirmation)
-	
+
 	if confirmation != "yes" {
 		fmt.Fprintf(os.Stderr, "\nAborted. Database was not deleted.\n")
 		os.Exit(0)

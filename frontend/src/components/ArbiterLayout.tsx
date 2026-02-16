@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
-import { Menu, LogOut, Sun, Moon, Monitor, FileText, Search, TestTube, ChevronDown, ChevronUp } from 'lucide-react'
+import { Menu, LogOut, Sun, Moon, Monitor, FileText, Search, TestTube, Activity, ChevronDown, ChevronUp } from 'lucide-react'
 import MobileNav from './MobileNav'
 import Button from './ui/button'
 import Tooltip from './ui/tooltip'
@@ -20,6 +20,7 @@ export default function ArbiterLayout() {
       { path: '/', label: 'Policies', icon: FileText },
       { path: '/effective', label: 'Effective', icon: Search },
       { path: '/tester', label: 'Tester', icon: TestTube },
+      { path: '/telemetry', label: 'Telemetry', icon: Activity },
     ]
   }, [])
 

@@ -1,17 +1,23 @@
 module github.com/domostack/arbiter
 
-go 1.23
+go 1.24.0
 
 require (
 	github.com/go-chi/chi/v5 v5.0.12
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/google/uuid v1.6.0
+	github.com/redis/go-redis/v9 v9.17.3
 	github.com/rs/zerolog v1.32.0
+	golang.org/x/time v0.14.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.29.10
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
