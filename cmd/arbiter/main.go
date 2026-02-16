@@ -14,6 +14,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/domostack/arbiter/internal/arbiter"
@@ -102,9 +103,14 @@ func main() {
 	// Initialize telemetry publisher
 	publisher := telemetry.NewPublisher(cfg.Telemetry, logger)
 
-	// Initialize telemetry query API (optional, read-only MariaDB connection)
+	// Initialize telemetry query API (optional, MariaDB connection)
 	var telemetryRepo *query.Repository
 	if cfg.TelemetryAPI.Enabled {
+		// Run MariaDB rollup table migrations (idempotent — same migrations the consumer runs)
+		if err := runTelemetryMigrations(cfg.TelemetryAPI.DBDSN, logger); err != nil {
+			logger.Fatal().Err(err).Msg("telemetry MariaDB migrations failed")
+		}
+
 		telemetryDB, err := sql.Open("mysql", cfg.TelemetryAPI.DBDSN)
 		if err != nil {
 			logger.Fatal().Err(err).Msg("failed to open telemetry API MariaDB connection")
@@ -249,6 +255,68 @@ func runMigrations(databaseURL string, logger zerolog.Logger) error {
 		logger.Info().Msg("database is up to date")
 	} else {
 		logger.Info().Msg("migrations completed successfully")
+	}
+
+	return nil
+}
+
+// runTelemetryMigrations runs golang-migrate against the telemetry MariaDB database.
+// Migration files are expected in db/migrations/ relative to the executable or cwd.
+// This is the same migration set that the telemetry consumer runs on boot.
+func runTelemetryMigrations(dsn string, logger zerolog.Logger) error {
+	// Locate db/migrations/ directory
+	candidates := []string{}
+
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exePath)
+		candidates = append(candidates, filepath.Join(exeDir, "..", "db", "migrations"))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		candidates = append(candidates, filepath.Join(cwd, "db", "migrations"))
+	}
+
+	var migrationsPath string
+	for _, p := range candidates {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		if info, err := os.Stat(abs); err == nil && info.IsDir() {
+			migrationsPath = abs
+			break
+		}
+	}
+	if migrationsPath == "" {
+		return fmt.Errorf("telemetry migrations directory not found (tried: %s)", strings.Join(candidates, ", "))
+	}
+
+	sourceURL := fmt.Sprintf("file://%s", migrationsPath)
+
+	// Convert go-sql-driver DSN to mysql:// URL for golang-migrate
+	dbURL := dsn
+	if !strings.HasPrefix(dbURL, "mysql://") {
+		dbURL = "mysql://" + dbURL
+	}
+
+	logger.Info().
+		Str("source", sourceURL).
+		Msg("running telemetry MariaDB migrations")
+
+	m, err := migrate.New(sourceURL, dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+	defer m.Close()
+
+	err = m.Up()
+	if err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run telemetry migrations: %w", err)
+	}
+
+	if err == migrate.ErrNoChange {
+		logger.Info().Msg("telemetry MariaDB schema is up to date")
+	} else {
+		logger.Info().Msg("telemetry MariaDB migrations completed successfully")
 	}
 
 	return nil
