@@ -435,6 +435,160 @@ func TestScannerMergeMissingEnrichment(t *testing.T) {
 	}
 }
 
+// ── Flooder reason flag threshold tests ──────────────────────────────────
+
+func TestFlooderReasons(t *testing.T) {
+	windowSeconds := int64(900) // 15 minutes
+
+	tests := []struct {
+		name        string
+		uniquePaths int64
+		total       int64
+		peakBucket  int64
+		wantReasons []string
+	}{
+		{
+			name:        "below all thresholds (unique_paths too high, low peak, low burst)",
+			uniquePaths: 10,          // > 3 → no FLOOD_SINGLE_PATH
+			total:       900,         // avgRPS = 1.0
+			peakBucket:  40,          // peakRPS = 4.0, burstiness = 4.0/1.0 = 4.0
+			wantReasons: nil,
+		},
+		{
+			name:        "FLOOD_SINGLE_PATH only",
+			uniquePaths: 2,           // <= 3
+			total:       900,         // avgRPS = 1.0
+			peakBucket:  40,          // peakRPS = 4.0, burstiness = 4.0/1.0 = 4.0
+			wantReasons: []string{"FLOOD_SINGLE_PATH"},
+		},
+		{
+			name:        "HIGH_PEAK only (unique_paths too high)",
+			uniquePaths: 10,
+			total:       2700,        // avgRPS = 3.0
+			peakBucket:  100,         // peakRPS = 10.0, burstiness = 10.0/3.0 = 3.33
+			wantReasons: []string{"HIGH_PEAK"},
+		},
+		{
+			name:        "BURSTY only (unique_paths too high)",
+			uniquePaths: 10,
+			total:       18,          // avgRPS = 18/900 = 0.02 → floor 0.1
+			peakBucket:  5,           // peakRPS = 0.5, burstiness = 0.5/0.1 = 5.0
+			wantReasons: []string{"BURSTY"},
+		},
+		{
+			name:        "all three reasons",
+			uniquePaths: 1,           // <= 3 → FLOOD_SINGLE_PATH
+			total:       100,         // avgRPS = 100/900 ≈ 0.11
+			peakBucket:  200,         // peakRPS = 20.0, burstiness ≈ 181
+			wantReasons: []string{"FLOOD_SINGLE_PATH", "BURSTY", "HIGH_PEAK"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			avgRPS := computeAvgRPS(tt.total, windowSeconds)
+			peakRPS := computePeakRPS(tt.peakBucket)
+			burstiness := computeBurstiness(peakRPS, avgRPS)
+
+			var reasons []string
+			if tt.uniquePaths <= 3 {
+				reasons = append(reasons, "FLOOD_SINGLE_PATH")
+			}
+			if burstiness >= 5 {
+				reasons = append(reasons, "BURSTY")
+			}
+			if peakRPS >= 10 {
+				reasons = append(reasons, "HIGH_PEAK")
+			}
+
+			if len(reasons) != len(tt.wantReasons) {
+				t.Errorf("reasons = %v, want %v", reasons, tt.wantReasons)
+				return
+			}
+			for i := range reasons {
+				if reasons[i] != tt.wantReasons[i] {
+					t.Errorf("reasons[%d] = %q, want %q", i, reasons[i], tt.wantReasons[i])
+				}
+			}
+		})
+	}
+}
+
+// ── Flooder candidate merge with missing enrichment ─────────────────────
+
+func TestFlooderMergeMissingEnrichment(t *testing.T) {
+	// When a flooder candidate exists but enrichment returns no matching row
+	// (because unique_paths exceeded FlooderMaxPaths), the handler skips it.
+
+	candidates := []query.FlooderCandidateRow{
+		{Host: "a.com", IP: "1.1.1.1", Path: "/login", Total: 200},
+		{Host: "b.com", IP: "2.2.2.2", Path: "/api", Total: 150},
+	}
+
+	// Only one candidate passes the enrichment filter
+	type enrichKey struct{ Host, IP string }
+	enrichMap := map[enrichKey]query.FlooderEnrichRow{
+		{"a.com", "1.1.1.1"}: {Host: "a.com", IP: "1.1.1.1", UniquePaths: 2, PeakBucketTotal: 80},
+	}
+
+	windowSeconds := int64(900)
+
+	var items []query.SuspiciousFlooderItem
+	for _, c := range candidates {
+		e, ok := enrichMap[enrichKey{c.Host, c.IP}]
+		if !ok {
+			// IP did not pass the unique_paths filter — skip (matches handler logic)
+			continue
+		}
+
+		avgRPS := computeAvgRPS(c.Total, windowSeconds)
+		peakRPS := computePeakRPS(e.PeakBucketTotal)
+		burstiness := computeBurstiness(peakRPS, avgRPS)
+
+		var reasons []string
+		if e.UniquePaths <= 3 {
+			reasons = append(reasons, "FLOOD_SINGLE_PATH")
+		}
+		if burstiness >= 5 {
+			reasons = append(reasons, "BURSTY")
+		}
+		if peakRPS >= 10 {
+			reasons = append(reasons, "HIGH_PEAK")
+		}
+
+		items = append(items, query.SuspiciousFlooderItem{
+			Host:        c.Host,
+			IP:          c.IP,
+			Path:        c.Path,
+			UniquePaths: e.UniquePaths,
+			Total:       c.Total,
+			AvgRPS:      roundFloat(avgRPS, 2),
+			PeakRPS:     roundFloat(peakRPS, 2),
+			Burstiness:  roundFloat(burstiness, 2),
+			Reasons:     reasons,
+		})
+	}
+
+	// Only the first candidate had enrichment data; second was skipped
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+
+	if items[0].Total != 200 {
+		t.Errorf("items[0].Total = %d, want 200", items[0].Total)
+	}
+	if items[0].PeakRPS != 8.0 {
+		t.Errorf("items[0].PeakRPS = %f, want 8.0", items[0].PeakRPS)
+	}
+	if items[0].Path != "/login" {
+		t.Errorf("items[0].Path = %q, want /login", items[0].Path)
+	}
+	// Should have FLOOD_SINGLE_PATH reason (unique_paths=2 <= 3)
+	if len(items[0].Reasons) == 0 || items[0].Reasons[0] != "FLOOD_SINGLE_PATH" {
+		t.Errorf("items[0].Reasons = %v, expected FLOOD_SINGLE_PATH as first reason", items[0].Reasons)
+	}
+}
+
 // ── Empty list guard test ───────────────────────────────────────────────
 
 func TestEmptyListGuard(t *testing.T) {

@@ -34,6 +34,11 @@ type TelemetryAPIConfig struct {
 	// Overview sprayer thresholds
 	SprayerHostThreshold int // Unique hosts to earn SPRAY_HOSTS flag (default 5)
 
+	// Overview flooder thresholds
+	FlooderMinTotal    int // Min total requests to a single path to be a flooder candidate (default 50)
+	FlooderCandidateCap int // Max flooder candidates from Stage 1 SQL (default 200)
+	FlooderMaxPaths    int // Max unique paths for an IP to qualify as a flooder (default 3)
+
 	// Shared reason-flag thresholds
 	BurstinessThreshold float64 // Burstiness ratio to earn BURSTY flag (default 5.0)
 	PeakRPSThreshold    float64 // Peak RPS to earn HIGH_PEAK flag (default 10.0)
@@ -123,6 +128,11 @@ func Load() (*Config, error) {
 
 		// Overview sprayer thresholds
 		SprayerHostThreshold: getEnvInt("ARB_TELEMETRY_SPRAYER_HOST_THRESHOLD", 5),
+
+		// Overview flooder thresholds
+		FlooderMinTotal:    getEnvInt("ARB_TELEMETRY_FLOODER_MIN_TOTAL", 50),
+		FlooderCandidateCap: getEnvInt("ARB_TELEMETRY_FLOODER_CANDIDATE_CAP", 200),
+		FlooderMaxPaths:    getEnvInt("ARB_TELEMETRY_FLOODER_MAX_PATHS", 3),
 
 		// Shared reason-flag thresholds
 		BurstinessThreshold: getEnvFloat("ARB_TELEMETRY_BURSTINESS_THRESHOLD", 5.0),

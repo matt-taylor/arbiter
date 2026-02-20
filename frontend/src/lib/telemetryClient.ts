@@ -84,6 +84,42 @@ export interface SuspiciousSprayersOverviewResponse {
   }>
 }
 
+export interface SuspiciousFloodersOverviewResponse {
+  window_minutes: number
+  start_ts: number
+  end_ts: number
+  items: Array<{
+    host: string
+    ip: string
+    path: string
+    unique_paths: number
+    total: number
+    avg_rps: number
+    peak_rps: number
+    burstiness: number
+    reasons: string[]
+  }>
+}
+
+// ── Overview config types ────────────────────────────────────────────────────
+
+export interface ReasonFlagInfo {
+  flag: string
+  description: string
+}
+
+export interface DetectionConfig {
+  description: string
+  thresholds: Record<string, number>
+  reason_flags: ReasonFlagInfo[]
+}
+
+export interface OverviewConfigResponse {
+  scanners: DetectionConfig
+  sprayers: DetectionConfig
+  flooders: DetectionConfig
+}
+
 // ── Error helper ─────────────────────────────────────────────────────────────
 
 function handleError(err: unknown): never {
@@ -222,6 +258,37 @@ export async function getOverviewSuspiciousSprayers(
     const response = await arbiterApi.get<SuspiciousSprayersOverviewResponse>(
       `/telemetry/overview/suspicious-sprayers`,
       { params: buildParams(windowMinutes, limit, endTs), signal },
+    )
+    return response.data
+  } catch (err) {
+    handleError(err)
+  }
+}
+
+export async function getOverviewSuspiciousFlooders(
+  windowMinutes: number,
+  limit: number,
+  endTs?: number,
+  signal?: AbortSignal,
+): Promise<SuspiciousFloodersOverviewResponse> {
+  try {
+    const response = await arbiterApi.get<SuspiciousFloodersOverviewResponse>(
+      `/telemetry/overview/suspicious-flooders`,
+      { params: buildParams(windowMinutes, limit, endTs), signal },
+    )
+    return response.data
+  } catch (err) {
+    handleError(err)
+  }
+}
+
+export async function getOverviewConfig(
+  signal?: AbortSignal,
+): Promise<OverviewConfigResponse> {
+  try {
+    const response = await arbiterApi.get<OverviewConfigResponse>(
+      `/telemetry/overview/config`,
+      { signal },
     )
     return response.data
   } catch (err) {

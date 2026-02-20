@@ -366,6 +366,72 @@ def test_with_end_ts(base_url: str, meta: Dict[str, Any]) -> Tuple[int, int, Lis
     return passed, failed, msgs
 
 
+def test_suspicious_flooders(base_url: str, meta: Dict[str, Any]) -> Tuple[int, int, List[str]]:
+    """Test GET /api/v1/telemetry/overview/suspicious-flooders"""
+    passed, failed, msgs = 0, 0, []
+
+    url = f"{base_url}/api/v1/telemetry/overview/suspicious-flooders?window_minutes=5&limit=20"
+    resp = requests.get(url, timeout=5)
+
+    if resp.status_code != 200:
+        msgs.append(f"  ✗ suspicious-flooders: expected 200, got {resp.status_code}: {resp.text}")
+        return 0, 1, msgs
+
+    data = resp.json()
+
+    # Check envelope fields
+    for field in ["window_minutes", "start_ts", "end_ts", "items"]:
+        if field not in data:
+            msgs.append(f"  ✗ suspicious-flooders: missing field '{field}'")
+            failed += 1
+        else:
+            passed += 1
+
+    items = data.get("items", [])
+
+    # Items should be a list (may be empty if test data doesn't meet FlooderMinTotal=50)
+    if not isinstance(items, list):
+        msgs.append(f"  ✗ suspicious-flooders: items is not a list: {type(items)}")
+        failed += 1
+    else:
+        passed += 1
+
+    # If there are items, verify shape
+    if len(items) > 0:
+        item = items[0]
+        expected_fields = ["host", "ip", "path", "unique_paths", "total", "avg_rps", "peak_rps", "burstiness", "reasons"]
+        for field in expected_fields:
+            if field not in item:
+                msgs.append(f"  ✗ suspicious-flooders: item missing field '{field}'")
+                failed += 1
+            else:
+                passed += 1
+
+        # Check that reasons is a list
+        reasons = item.get("reasons", None)
+        if not isinstance(reasons, list):
+            msgs.append(f"  ✗ suspicious-flooders: reasons is not a list: {type(reasons)}")
+            failed += 1
+        else:
+            passed += 1
+
+        # ip1 has 60 total on /api/v1/users (>= FlooderMinTotal=50)
+        # and only 3 unique paths (<= FlooderMaxPaths=3), so it should qualify
+        flooder_ips = [i["ip"] for i in items]
+        if meta["ip1"] in flooder_ips:
+            passed += 1
+        else:
+            msgs.append(f"  ✗ suspicious-flooders: expected ip1 ({meta['ip1']}) in results, got {flooder_ips}")
+            failed += 1
+    else:
+        msgs.append(f"  ⚠ suspicious-flooders: no items returned (may not meet threshold)")
+
+    if failed == 0:
+        msgs.append(f"  ✓ suspicious-flooders: all checks passed ({passed} assertions)")
+
+    return passed, failed, msgs
+
+
 def test_validation_errors(base_url: str) -> Tuple[int, int, List[str]]:
     """Test validation error responses."""
     passed, failed, msgs = 0, 0, []
@@ -530,6 +596,14 @@ def main():
     # Test with explicit end_ts
     print("\n  --- end_ts parameter ---")
     p, f, msgs = test_with_end_ts(args.arbiter_url, meta)
+    total_passed += p
+    total_failed += f
+    for m in msgs:
+        print(m)
+
+    # Test suspicious flooders
+    print("\n  --- suspicious-flooders ---")
+    p, f, msgs = test_suspicious_flooders(args.arbiter_url, meta)
     total_passed += p
     total_failed += f
     for m in msgs:

@@ -109,3 +109,38 @@ type SuspiciousSprayerItem struct {
 	Burstiness  float64  `json:"burstiness"`
 	Reasons     []string `json:"reasons"`
 }
+
+// ── Flooder DB-level rows ───────────────────────────────────────────────
+
+// FlooderCandidateRow is returned by the flooder Stage 1 candidate query.
+// Each row is a (host, ip, path) triple with high total requests to that path.
+type FlooderCandidateRow struct {
+	Host  string
+	IP    string
+	Path  string
+	Total int64
+}
+
+// FlooderEnrichRow is returned by the flooder Stage 2 enrichment query.
+// It provides the unique path count and peak bucket total for a (host, ip) pair.
+type FlooderEnrichRow struct {
+	Host            string
+	IP              string
+	UniquePaths     int64
+	PeakBucketTotal int64 // MAX(total) per 10s bucket for this host+ip
+}
+
+// ── Flooder API-level response item ─────────────────────────────────────
+
+// SuspiciousFlooderItem is an element in the suspicious-flooders response items array.
+type SuspiciousFlooderItem struct {
+	Host        string   `json:"host"`
+	IP          string   `json:"ip"`
+	Path        string   `json:"path"`
+	UniquePaths int64    `json:"unique_paths"`
+	Total       int64    `json:"total"`
+	AvgRPS      float64  `json:"avg_rps"`
+	PeakRPS     float64  `json:"peak_rps"`
+	Burstiness  float64  `json:"burstiness"`
+	Reasons     []string `json:"reasons"`
+}

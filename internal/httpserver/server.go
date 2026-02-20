@@ -71,6 +71,7 @@ func NewServer(
 			th := NewTelemetryHandlersWithThresholds(telemetryRepo, logger, telemetryAPICfg.MaxWindowMinutes, telemetryAPICfg.MaxLimit, OverviewThresholds{
 				ScannerPathThreshold: telemetryAPICfg.ScannerPathThreshold,
 				SprayerHostThreshold: telemetryAPICfg.SprayerHostThreshold,
+				FlooderMaxPaths:      telemetryAPICfg.FlooderMaxPaths,
 				BurstinessThreshold:  telemetryAPICfg.BurstinessThreshold,
 				PeakRPSThreshold:     telemetryAPICfg.PeakRPSThreshold,
 			})
@@ -84,6 +85,8 @@ func NewServer(
 			r.Get("/overview/top-hosts", th.HandleOverviewTopHosts)
 			r.Get("/overview/suspicious-scanners", th.HandleOverviewSuspiciousScanners)
 			r.Get("/overview/suspicious-sprayers", th.HandleOverviewSuspiciousSprayers)
+			r.Get("/overview/suspicious-flooders", th.HandleOverviewSuspiciousFlooders)
+			r.Get("/overview/config", th.HandleOverviewConfig)
 			})
 		}
 	})

@@ -129,6 +129,9 @@ func main() {
 			ScannerNoiseFloor:   cfg.TelemetryAPI.ScannerNoiseFloor,
 			ScannerCandidateCap: cfg.TelemetryAPI.ScannerCandidateCap,
 			ScannerEnrichBatch:  cfg.TelemetryAPI.ScannerEnrichBatch,
+			FlooderMinTotal:     cfg.TelemetryAPI.FlooderMinTotal,
+			FlooderCandidateCap: cfg.TelemetryAPI.FlooderCandidateCap,
+			FlooderMaxPaths:     cfg.TelemetryAPI.FlooderMaxPaths,
 		})
 		logger.Info().Msg("telemetry query API enabled (MariaDB connected)")
 	}

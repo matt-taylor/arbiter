@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
@@ -17,6 +18,7 @@ import (
 type OverviewThresholds struct {
 	ScannerPathThreshold int     // Unique paths to earn SCAN_SINGLE_HOST flag (default 30)
 	SprayerHostThreshold int     // Unique hosts to earn SPRAY_HOSTS flag (default 5)
+	FlooderMaxPaths      int     // Max unique paths for FLOOD_SINGLE_PATH flag (default 3)
 	BurstinessThreshold  float64 // Burstiness ratio to earn BURSTY flag (default 5.0)
 	PeakRPSThreshold     float64 // Peak RPS to earn HIGH_PEAK flag (default 10.0)
 }
@@ -26,6 +28,7 @@ func DefaultOverviewThresholds() OverviewThresholds {
 	return OverviewThresholds{
 		ScannerPathThreshold: 30,
 		SprayerHostThreshold: 5,
+		FlooderMaxPaths:      3,
 		BurstinessThreshold:  5.0,
 		PeakRPSThreshold:     10.0,
 	}
@@ -523,5 +526,176 @@ func (th *TelemetryHandlers) HandleOverviewSuspiciousSprayers(w http.ResponseWri
 		"start_ts":       start,
 		"end_ts":         end,
 		"items":          items,
+	})
+}
+
+// ── HandleOverviewSuspiciousFlooders ────────────────────────────────────
+
+// HandleOverviewSuspiciousFlooders handles GET /api/v1/telemetry/overview/suspicious-flooders
+func (th *TelemetryHandlers) HandleOverviewSuspiciousFlooders(w http.ResponseWriter, r *http.Request) {
+	reqID := middleware.GetReqID(r.Context())
+	q := r.URL.Query()
+
+	params, err := query.ParseOverviewParams(
+		q.Get("window_minutes"), q.Get("limit"), q.Get("end_ts"),
+		th.maxWindow, th.maxLimit,
+	)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error(), reqID)
+		return
+	}
+
+	start, end := computeOverviewTimeRange(params)
+	windowSeconds := end - start
+
+	// Stage 1: candidates — (host, ip, path) triples with high single-path totals
+	candidates, err := th.repo.OverviewFlooderCandidates(r.Context(), start, end)
+	if err != nil {
+		th.logger.Error().Err(err).Str("request_id", reqID).Msg("OverviewFlooderCandidates query failed")
+		writeJSONError(w, http.StatusInternalServerError, "internal server error", reqID)
+		return
+	}
+
+	// Stage 2: enrich with unique_paths + peak (skip if no candidates)
+	type enrichKey struct{ Host, IP string }
+	enrichMap := make(map[enrichKey]query.FlooderEnrichRow)
+	if len(candidates) > 0 {
+		enriched, err := th.repo.OverviewFlooderEnrich(r.Context(), start, end, candidates)
+		if err != nil {
+			th.logger.Error().Err(err).Str("request_id", reqID).Msg("OverviewFlooderEnrich query failed")
+			writeJSONError(w, http.StatusInternalServerError, "internal server error", reqID)
+			return
+		}
+		for _, e := range enriched {
+			enrichMap[enrichKey{e.Host, e.IP}] = e
+		}
+	}
+
+	// Merge candidates + enrichment, compute derived metrics
+	flooderItems := make([]query.SuspiciousFlooderItem, 0, len(candidates))
+	for _, c := range candidates {
+		e, ok := enrichMap[enrichKey{c.Host, c.IP}]
+		if !ok {
+			// IP did not pass the unique_paths filter — skip
+			continue
+		}
+
+		avgRPS := computeAvgRPS(c.Total, windowSeconds)
+		peakRPS := computePeakRPS(e.PeakBucketTotal)
+		burstiness := computeBurstiness(peakRPS, avgRPS)
+
+		reasons := make([]string, 0)
+		if e.UniquePaths <= int64(th.thresholds.FlooderMaxPaths) {
+			reasons = append(reasons, "FLOOD_SINGLE_PATH")
+		}
+		if burstiness >= th.thresholds.BurstinessThreshold {
+			reasons = append(reasons, "BURSTY")
+		}
+		if peakRPS >= th.thresholds.PeakRPSThreshold {
+			reasons = append(reasons, "HIGH_PEAK")
+		}
+
+		flooderItems = append(flooderItems, query.SuspiciousFlooderItem{
+			Host:        c.Host,
+			IP:          c.IP,
+			Path:        c.Path,
+			UniquePaths: e.UniquePaths,
+			Total:       c.Total,
+			AvgRPS:      roundFloat(avgRPS, 2),
+			PeakRPS:     roundFloat(peakRPS, 2),
+			Burstiness:  roundFloat(burstiness, 2),
+			Reasons:     reasons,
+		})
+	}
+
+	// Sort: total DESC, peak_rps DESC
+	sort.Slice(flooderItems, func(i, j int) bool {
+		if flooderItems[i].Total != flooderItems[j].Total {
+			return flooderItems[i].Total > flooderItems[j].Total
+		}
+		return flooderItems[i].PeakRPS > flooderItems[j].PeakRPS
+	})
+
+	// Apply final limit
+	if len(flooderItems) > params.Limit {
+		flooderItems = flooderItems[:params.Limit]
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"window_minutes": params.WindowMinutes,
+		"start_ts":       start,
+		"end_ts":         end,
+		"items":          flooderItems,
+	})
+}
+
+// HandleOverviewConfig handles GET /api/v1/telemetry/overview/config
+// Returns descriptions, current thresholds, and reason-flag explanations
+// for each suspicious-activity detection type. No DB queries — reads from config.
+func (th *TelemetryHandlers) HandleOverviewConfig(w http.ResponseWriter, r *http.Request) {
+	repoCfg := th.repo.Config()
+	t := th.thresholds
+
+	type reasonFlag struct {
+		Flag        string `json:"flag"`
+		Description string `json:"description"`
+	}
+
+	type detectionConfig struct {
+		Description string            `json:"description"`
+		Thresholds  map[string]interface{} `json:"thresholds"`
+		ReasonFlags []reasonFlag      `json:"reason_flags"`
+	}
+
+	scanners := detectionConfig{
+		Description: "IPs scanning many unique paths on a single host — indicates directory enumeration, vulnerability probing, or scraping.",
+		Thresholds: map[string]interface{}{
+			"noise_floor":           repoCfg.ScannerNoiseFloor,
+			"candidate_cap":         repoCfg.ScannerCandidateCap,
+			"path_threshold":        t.ScannerPathThreshold,
+			"burstiness_threshold":  t.BurstinessThreshold,
+			"peak_rps_threshold":    t.PeakRPSThreshold,
+		},
+		ReasonFlags: []reasonFlag{
+			{Flag: "SCAN_SINGLE_HOST", Description: fmt.Sprintf("IP hit ≥ %d unique paths on a single host", t.ScannerPathThreshold)},
+			{Flag: "BURSTY", Description: fmt.Sprintf("Peak-to-average RPS ratio ≥ %.1f", t.BurstinessThreshold)},
+			{Flag: "HIGH_PEAK", Description: fmt.Sprintf("Peak RPS ≥ %.1f", t.PeakRPSThreshold)},
+		},
+	}
+
+	sprayers := detectionConfig{
+		Description: "IPs hitting many unique hosts — indicates broad reconnaissance, credential stuffing, or spray attacks across domains.",
+		Thresholds: map[string]interface{}{
+			"host_threshold":        t.SprayerHostThreshold,
+			"burstiness_threshold":  t.BurstinessThreshold,
+			"peak_rps_threshold":    t.PeakRPSThreshold,
+		},
+		ReasonFlags: []reasonFlag{
+			{Flag: "SPRAY_HOSTS", Description: fmt.Sprintf("IP hit ≥ %d unique hosts", t.SprayerHostThreshold)},
+			{Flag: "BURSTY", Description: fmt.Sprintf("Peak-to-average RPS ratio ≥ %.1f", t.BurstinessThreshold)},
+			{Flag: "HIGH_PEAK", Description: fmt.Sprintf("Peak RPS ≥ %.1f", t.PeakRPSThreshold)},
+		},
+	}
+
+	flooders := detectionConfig{
+		Description: "IPs hammering the same endpoint on a single host — indicates brute-force login attempts, API abuse, or DDoS.",
+		Thresholds: map[string]interface{}{
+			"min_total":             repoCfg.FlooderMinTotal,
+			"candidate_cap":         repoCfg.FlooderCandidateCap,
+			"max_paths":             t.FlooderMaxPaths,
+			"burstiness_threshold":  t.BurstinessThreshold,
+			"peak_rps_threshold":    t.PeakRPSThreshold,
+		},
+		ReasonFlags: []reasonFlag{
+			{Flag: "FLOOD_SINGLE_PATH", Description: fmt.Sprintf("IP hit ≤ %d unique paths on the host (focused on one endpoint)", t.FlooderMaxPaths)},
+			{Flag: "BURSTY", Description: fmt.Sprintf("Peak-to-average RPS ratio ≥ %.1f", t.BurstinessThreshold)},
+			{Flag: "HIGH_PEAK", Description: fmt.Sprintf("Peak RPS ≥ %.1f", t.PeakRPSThreshold)},
+		},
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"scanners": scanners,
+		"sprayers": sprayers,
+		"flooders": flooders,
 	})
 }

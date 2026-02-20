@@ -8,12 +8,17 @@ import {
   getOverviewTopHosts,
   getOverviewSuspiciousScanners,
   getOverviewSuspiciousSprayers,
+  getOverviewSuspiciousFlooders,
+  getOverviewConfig,
   type SummaryResponse,
   type TopIPsResponse,
   type TopPathsResponse,
   type TopHostsOverviewResponse,
   type SuspiciousScannersOverviewResponse,
   type SuspiciousSprayersOverviewResponse,
+  type SuspiciousFloodersOverviewResponse,
+  type OverviewConfigResponse,
+  type DetectionConfig,
   type StatusBreakdown,
 } from '@/lib/telemetryClient'
 import Button from '@/components/ui/button'
@@ -21,8 +26,9 @@ import Input from '@/components/ui/input'
 import Select from '@/components/ui/select'
 import Loading from '@/components/ui/loading'
 import Badge from '@/components/ui/badge'
+import Tooltip from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { RefreshCw, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { RefreshCw, ChevronDown, ChevronUp, X, Info } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -102,6 +108,8 @@ export default function TelemetryPage() {
   const [overviewTopHosts, setOverviewTopHosts] = useState<TopHostsOverviewResponse | null>(null)
   const [overviewScanners, setOverviewScanners] = useState<SuspiciousScannersOverviewResponse | null>(null)
   const [overviewSprayers, setOverviewSprayers] = useState<SuspiciousSprayersOverviewResponse | null>(null)
+  const [overviewFlooders, setOverviewFlooders] = useState<SuspiciousFloodersOverviewResponse | null>(null)
+  const [overviewConfig, setOverviewConfig] = useState<OverviewConfigResponse | null>(null)
 
   // ── Loading / error ──────────────────────────────────────────────────────
   const [batchLoading, setBatchLoading] = useState(false)
@@ -194,7 +202,7 @@ export default function TelemetryPage() {
     }
   }, [])
 
-  // ── Fetch overview (all 3 endpoints) ────────────────────────────────────
+  // ── Fetch overview (all endpoints + config) ─────────────────────────────
   const fetchOverview = useCallback(async (win: number, ets?: number) => {
     overviewAbortRef.current?.abort()
     const controller = new AbortController()
@@ -205,14 +213,18 @@ export default function TelemetryPage() {
     overviewInFlightRef.current = true
 
     try {
-      const [hostsRes, scannersRes, sprayersRes] = await Promise.all([
+      const [hostsRes, scannersRes, sprayersRes, floodersRes, configRes] = await Promise.all([
         getOverviewTopHosts(win, 20, ets, controller.signal),
         getOverviewSuspiciousScanners(win, 50, ets, controller.signal),
         getOverviewSuspiciousSprayers(win, 50, ets, controller.signal),
+        getOverviewSuspiciousFlooders(win, 50, ets, controller.signal),
+        getOverviewConfig(controller.signal),
       ])
       setOverviewTopHosts(hostsRes)
       setOverviewScanners(scannersRes)
       setOverviewSprayers(sprayersRes)
+      setOverviewFlooders(floodersRes)
+      setOverviewConfig(configRes)
     } catch (err) {
       if (axios.isCancel(err)) return
       setOverviewError(errorWithRequestId(err))
@@ -514,7 +526,8 @@ export default function TelemetryPage() {
           {/* Suspicious Scanners table */}
           {!overviewLoading && !overviewError && overviewScanners && (
             <div className="mb-6">
-              <h2 className="text-lg font-semibold mb-3">Suspicious Scanners</h2>
+              <h2 className="text-lg font-semibold mb-1">Suspicious Scanners</h2>
+              {overviewConfig?.scanners && <DetectionInfo config={overviewConfig.scanners} />}
               {overviewScanners.items.length === 0 ? (
                 <div className="border rounded-lg p-6 bg-card text-center text-muted-foreground">
                   No data in this window.
@@ -543,7 +556,7 @@ export default function TelemetryPage() {
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
                               {row.reasons.map((r, i) => (
-                                <Badge key={r + i} className="text-xs">{r}</Badge>
+                                <ReasonBadge key={r + i} flag={r} config={overviewConfig?.scanners} />
                               ))}
                             </div>
                           </td>
@@ -559,7 +572,8 @@ export default function TelemetryPage() {
           {/* Suspicious Sprayers table */}
           {!overviewLoading && !overviewError && overviewSprayers && (
             <div className="mb-6">
-              <h2 className="text-lg font-semibold mb-3">Suspicious Sprayers</h2>
+              <h2 className="text-lg font-semibold mb-1">Suspicious Sprayers</h2>
+              {overviewConfig?.sprayers && <DetectionInfo config={overviewConfig.sprayers} />}
               {overviewSprayers.items.length === 0 ? (
                 <div className="border rounded-lg p-6 bg-card text-center text-muted-foreground">
                   No data in this window.
@@ -586,7 +600,57 @@ export default function TelemetryPage() {
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
                               {row.reasons.map((r, i) => (
-                                <Badge key={r + i} className="text-xs">{r}</Badge>
+                                <ReasonBadge key={r + i} flag={r} config={overviewConfig?.sprayers} />
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Suspicious Flooders table */}
+          {!overviewLoading && !overviewError && overviewFlooders && (
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold mb-1">Suspicious Flooders</h2>
+              {overviewConfig?.flooders && <DetectionInfo config={overviewConfig.flooders} />}
+              {overviewFlooders.items.length === 0 ? (
+                <div className="border rounded-lg p-6 bg-card text-center text-muted-foreground">
+                  No data in this window.
+                </div>
+              ) : (
+                <div className="border rounded-lg bg-card overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Host</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">IP</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Path</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Unique Paths</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Avg RPS</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Peak RPS</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reasons</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overviewFlooders.items.map((row, idx) => (
+                        <tr key={`${row.host}-${row.ip}-${row.path}-${idx}`} className="border-b last:border-b-0">
+                          <td className="px-4 py-3 font-mono">{row.host}</td>
+                          <td className="px-4 py-3 font-mono">{row.ip}</td>
+                          <td className="px-4 py-3 font-mono break-all">{row.path}</td>
+                          <td className="text-right px-4 py-3 font-semibold">{row.total.toLocaleString()}</td>
+                          <td className="text-right px-4 py-3">{row.unique_paths.toLocaleString()}</td>
+                          <td className="text-right px-4 py-3">{row.avg_rps.toFixed(2)}</td>
+                          <td className="text-right px-4 py-3">{row.peak_rps.toFixed(2)}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {row.reasons.map((r, i) => (
+                                <ReasonBadge key={r + i} flag={r} config={overviewConfig?.flooders} />
                               ))}
                             </div>
                           </td>
@@ -769,4 +833,51 @@ function StatCard({ label, value, muted }: { label: string; value: number; muted
       </p>
     </div>
   )
+}
+
+// ── DetectionInfo sub-component ──────────────────────────────────────────────
+
+function DetectionInfo({ config }: { config: DetectionConfig }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mb-2">
+      <p className="text-sm text-muted-foreground mb-1">{config.description}</p>
+      <button
+        onClick={() => setOpen(!open)}
+        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+      >
+        <Info className="h-3 w-3" />
+        {open ? 'Hide' : 'Show'} detection thresholds
+      </button>
+      {open && (
+        <div className="mt-2 text-xs border rounded-lg p-3 bg-muted/50 space-y-2">
+          <div>
+            <span className="font-medium">Reason flags:</span>
+            <ul className="mt-1 space-y-1 ml-4 list-disc">
+              {config.reason_flags.map((rf) => (
+                <li key={rf.flag}>
+                  <code className="bg-muted px-1 py-0.5 rounded font-mono">{rf.flag}</code>{' '}
+                  — {rf.description}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ReasonBadge sub-component ────────────────────────────────────────────────
+
+function ReasonBadge({ flag, config }: { flag: string; config?: DetectionConfig }) {
+  const info = config?.reason_flags.find((rf) => rf.flag === flag)
+  if (info) {
+    return (
+      <Tooltip content={info.description}>
+        <Badge className="text-xs cursor-help">{flag}</Badge>
+      </Tooltip>
+    )
+  }
+  return <Badge className="text-xs">{flag}</Badge>
 }
