@@ -13,21 +13,52 @@ import (
 	"github.com/domostack/arbiter/internal/telemetry/query"
 )
 
-// TelemetryHandlers holds the dependencies for the read-only telemetry API endpoints.
-type TelemetryHandlers struct {
-	repo      *query.Repository
-	logger    zerolog.Logger
-	maxWindow int
-	maxLimit  int
+// OverviewThresholds holds configurable thresholds for overview reason-flag logic.
+type OverviewThresholds struct {
+	ScannerPathThreshold int     // Unique paths to earn SCAN_SINGLE_HOST flag (default 30)
+	SprayerHostThreshold int     // Unique hosts to earn SPRAY_HOSTS flag (default 5)
+	BurstinessThreshold  float64 // Burstiness ratio to earn BURSTY flag (default 5.0)
+	PeakRPSThreshold     float64 // Peak RPS to earn HIGH_PEAK flag (default 10.0)
 }
 
-// NewTelemetryHandlers creates a new TelemetryHandlers.
+// DefaultOverviewThresholds returns the default thresholds.
+func DefaultOverviewThresholds() OverviewThresholds {
+	return OverviewThresholds{
+		ScannerPathThreshold: 30,
+		SprayerHostThreshold: 5,
+		BurstinessThreshold:  5.0,
+		PeakRPSThreshold:     10.0,
+	}
+}
+
+// TelemetryHandlers holds the dependencies for the read-only telemetry API endpoints.
+type TelemetryHandlers struct {
+	repo       *query.Repository
+	logger     zerolog.Logger
+	maxWindow  int
+	maxLimit   int
+	thresholds OverviewThresholds
+}
+
+// NewTelemetryHandlers creates a new TelemetryHandlers with default overview thresholds.
 func NewTelemetryHandlers(repo *query.Repository, logger zerolog.Logger, maxWindow, maxLimit int) *TelemetryHandlers {
 	return &TelemetryHandlers{
-		repo:      repo,
-		logger:    logger,
-		maxWindow: maxWindow,
-		maxLimit:  maxLimit,
+		repo:       repo,
+		logger:     logger,
+		maxWindow:  maxWindow,
+		maxLimit:   maxLimit,
+		thresholds: DefaultOverviewThresholds(),
+	}
+}
+
+// NewTelemetryHandlersWithThresholds creates a new TelemetryHandlers with explicit overview thresholds.
+func NewTelemetryHandlersWithThresholds(repo *query.Repository, logger zerolog.Logger, maxWindow, maxLimit int, thresholds OverviewThresholds) *TelemetryHandlers {
+	return &TelemetryHandlers{
+		repo:       repo,
+		logger:     logger,
+		maxWindow:  maxWindow,
+		maxLimit:   maxLimit,
+		thresholds: thresholds,
 	}
 }
 
@@ -367,13 +398,13 @@ func (th *TelemetryHandlers) HandleOverviewSuspiciousScanners(w http.ResponseWri
 		burstiness := computeBurstiness(peakRPS, avgRPS)
 
 		reasons := make([]string, 0)
-		if c.UniquePaths >= 30 {
+		if c.UniquePaths >= int64(th.thresholds.ScannerPathThreshold) {
 			reasons = append(reasons, "SCAN_SINGLE_HOST")
 		}
-		if burstiness >= 5 {
+		if burstiness >= th.thresholds.BurstinessThreshold {
 			reasons = append(reasons, "BURSTY")
 		}
-		if peakRPS >= 10 {
+		if peakRPS >= th.thresholds.PeakRPSThreshold {
 			reasons = append(reasons, "HIGH_PEAK")
 		}
 
@@ -466,13 +497,13 @@ func (th *TelemetryHandlers) HandleOverviewSuspiciousSprayers(w http.ResponseWri
 		burstiness := computeBurstiness(peakRPS, avgRPS)
 
 		reasons := make([]string, 0)
-		if s.UniqueHosts >= 5 {
+		if s.UniqueHosts >= int64(th.thresholds.SprayerHostThreshold) {
 			reasons = append(reasons, "SPRAY_HOSTS")
 		}
-		if burstiness >= 5 {
+		if burstiness >= th.thresholds.BurstinessThreshold {
 			reasons = append(reasons, "BURSTY")
 		}
-		if peakRPS >= 10 {
+		if peakRPS >= th.thresholds.PeakRPSThreshold {
 			reasons = append(reasons, "HIGH_PEAK")
 		}
 

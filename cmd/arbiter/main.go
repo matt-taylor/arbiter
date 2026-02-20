@@ -125,7 +125,11 @@ func main() {
 			logger.Fatal().Err(err).Msg("cannot reach telemetry API MariaDB")
 		}
 		defer telemetryDB.Close() // main owns lifecycle
-		telemetryRepo = query.NewRepository(telemetryDB)
+		telemetryRepo = query.NewRepositoryWithConfig(telemetryDB, query.RepositoryConfig{
+			ScannerNoiseFloor:   cfg.TelemetryAPI.ScannerNoiseFloor,
+			ScannerCandidateCap: cfg.TelemetryAPI.ScannerCandidateCap,
+			ScannerEnrichBatch:  cfg.TelemetryAPI.ScannerEnrichBatch,
+		})
 		logger.Info().Msg("telemetry query API enabled (MariaDB connected)")
 	}
 

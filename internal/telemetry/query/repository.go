@@ -7,17 +7,39 @@ import (
 	"strings"
 )
 
+// RepositoryConfig holds configurable thresholds for overview queries.
+type RepositoryConfig struct {
+	ScannerNoiseFloor   int // Min unique paths to be a scanner candidate (default 10)
+	ScannerCandidateCap int // Max scanner candidates from Stage 1 SQL (default 200)
+	ScannerEnrichBatch  int // Max candidates per enrichment query batch (default 100)
+}
+
+// DefaultRepositoryConfig returns the default thresholds.
+func DefaultRepositoryConfig() RepositoryConfig {
+	return RepositoryConfig{
+		ScannerNoiseFloor:   10,
+		ScannerCandidateCap: 200,
+		ScannerEnrichBatch:  100,
+	}
+}
+
 // Repository provides read-only access to the telemetry rollup tables in MariaDB.
 //
 // The Repository does NOT own the *sql.DB connection — the caller (cmd/main)
 // is responsible for calling db.Close(). This avoids double-close confusion.
 type Repository struct {
-	db *sql.DB
+	db  *sql.DB
+	cfg RepositoryConfig
 }
 
-// NewRepository wraps an existing *sql.DB for querying rollup tables.
+// NewRepository wraps an existing *sql.DB for querying rollup tables using default thresholds.
 func NewRepository(db *sql.DB) *Repository {
-	return &Repository{db: db}
+	return &Repository{db: db, cfg: DefaultRepositoryConfig()}
+}
+
+// NewRepositoryWithConfig wraps an existing *sql.DB with explicit thresholds.
+func NewRepositoryWithConfig(db *sql.DB, cfg RepositoryConfig) *Repository {
+	return &Repository{db: db, cfg: cfg}
 }
 
 // TopIPs returns the top IPs by total request count for a given host
@@ -199,14 +221,9 @@ SELECT host, MAX(bucket_total) AS max_bucket_total
 	return result, rows.Err()
 }
 
-// scannerCandidateCap is the maximum number of scanner candidates fetched in Stage 1.
-const scannerCandidateCap = 200
-
-// scannerNoiseFloor is the minimum unique paths required to be considered a candidate.
-const scannerNoiseFloor = 10
-
-// scannerEnrichBatchSize is the max candidates per Stage 2 enrichment query.
-const scannerEnrichBatchSize = 100
+// NOTE: scannerNoiseFloor, scannerCandidateCap, and scannerEnrichBatchSize
+// are now configurable via RepositoryConfig fields on the Repository struct.
+// Defaults are set in DefaultRepositoryConfig().
 
 // OverviewScannerCandidates returns scanner candidates (host+ip pairs with many
 // unique paths) within [start, end). Stage 1 of the two-stage scanner pattern.
@@ -220,7 +237,7 @@ HAVING COUNT(DISTINCT path_hash) >= ?
  ORDER BY unique_paths DESC
  LIMIT ?`
 
-	rows, err := r.db.QueryContext(ctx, q, start, end, scannerNoiseFloor, scannerCandidateCap)
+	rows, err := r.db.QueryContext(ctx, q, start, end, r.cfg.ScannerNoiseFloor, r.cfg.ScannerCandidateCap)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +256,7 @@ HAVING COUNT(DISTINCT path_hash) >= ?
 
 // OverviewScannerEnrich enriches scanner candidates with total + peak from
 // arb_host_ip_10s using a UNION ALL derived-table JOIN. Stage 2 of the scanner pattern.
-// Batches candidates in chunks of scannerEnrichBatchSize to keep query size manageable.
+// Batches candidates in chunks of cfg.ScannerEnrichBatch to keep query size manageable.
 func (r *Repository) OverviewScannerEnrich(ctx context.Context, start, end int64, candidates []ScannerCandidateRow) ([]ScannerEnrichRow, error) {
 	if len(candidates) == 0 {
 		return nil, nil
@@ -247,8 +264,8 @@ func (r *Repository) OverviewScannerEnrich(ctx context.Context, start, end int64
 
 	var allResults []ScannerEnrichRow
 
-	for batchStart := 0; batchStart < len(candidates); batchStart += scannerEnrichBatchSize {
-		batchEnd := batchStart + scannerEnrichBatchSize
+	for batchStart := 0; batchStart < len(candidates); batchStart += r.cfg.ScannerEnrichBatch {
+		batchEnd := batchStart + r.cfg.ScannerEnrichBatch
 		if batchEnd > len(candidates) {
 			batchEnd = len(candidates)
 		}

@@ -24,6 +24,19 @@ type TelemetryAPIConfig struct {
 	MaxWindowMinutes  int
 	MaxLimit          int
 	TrustProxyHeaders bool
+
+	// Overview scanner thresholds
+	ScannerNoiseFloor    int // Min unique paths to be a scanner candidate (default 10)
+	ScannerCandidateCap  int // Max scanner candidates from Stage 1 SQL (default 200)
+	ScannerEnrichBatch   int // Max candidates per enrichment query batch (default 100)
+	ScannerPathThreshold int // Unique paths to earn SCAN_SINGLE_HOST flag (default 30)
+
+	// Overview sprayer thresholds
+	SprayerHostThreshold int // Unique hosts to earn SPRAY_HOSTS flag (default 5)
+
+	// Shared reason-flag thresholds
+	BurstinessThreshold float64 // Burstiness ratio to earn BURSTY flag (default 5.0)
+	PeakRPSThreshold    float64 // Peak RPS to earn HIGH_PEAK flag (default 10.0)
 }
 
 // Config holds all configuration for the Arbiter service
@@ -101,6 +114,19 @@ func Load() (*Config, error) {
 		MaxWindowMinutes:  getEnvInt("ARB_TELEMETRY_API_MAX_WINDOW_MINUTES", 60),
 		MaxLimit:          getEnvInt("ARB_TELEMETRY_API_MAX_LIMIT", 100),
 		TrustProxyHeaders: getEnvBool("ARB_TELEMETRY_API_TRUST_PROXY_HEADERS", true),
+
+		// Overview scanner thresholds
+		ScannerNoiseFloor:    getEnvInt("ARB_TELEMETRY_SCANNER_NOISE_FLOOR", 10),
+		ScannerCandidateCap:  getEnvInt("ARB_TELEMETRY_SCANNER_CANDIDATE_CAP", 200),
+		ScannerEnrichBatch:   getEnvInt("ARB_TELEMETRY_SCANNER_ENRICH_BATCH", 100),
+		ScannerPathThreshold: getEnvInt("ARB_TELEMETRY_SCANNER_PATH_THRESHOLD", 30),
+
+		// Overview sprayer thresholds
+		SprayerHostThreshold: getEnvInt("ARB_TELEMETRY_SPRAYER_HOST_THRESHOLD", 5),
+
+		// Shared reason-flag thresholds
+		BurstinessThreshold: getEnvFloat("ARB_TELEMETRY_BURSTINESS_THRESHOLD", 5.0),
+		PeakRPSThreshold:    getEnvFloat("ARB_TELEMETRY_PEAK_RPS_THRESHOLD", 10.0),
 	}
 	if cfg.TelemetryAPI.Enabled {
 		if cfg.TelemetryAPI.DBDSN == "" {
@@ -149,6 +175,19 @@ func getEnvInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	return intValue
+}
+
+// getEnvFloat reads a float64 environment variable or returns a default value
+func getEnvFloat(key string, defaultValue float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	f, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return defaultValue
+	}
+	return f
 }
 
 // getEnvBool reads a boolean environment variable or returns a default value.

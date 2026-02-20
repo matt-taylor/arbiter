@@ -68,7 +68,12 @@ func NewServer(
 			// upstream authentication (e.g. NGINX auth) or add auth middleware in a
 			// future phase (Phase 3.5). No RBAC is implemented now — rate limiting
 			// is the only abuse mitigation.
-			th := NewTelemetryHandlers(telemetryRepo, logger, telemetryAPICfg.MaxWindowMinutes, telemetryAPICfg.MaxLimit)
+			th := NewTelemetryHandlersWithThresholds(telemetryRepo, logger, telemetryAPICfg.MaxWindowMinutes, telemetryAPICfg.MaxLimit, OverviewThresholds{
+				ScannerPathThreshold: telemetryAPICfg.ScannerPathThreshold,
+				SprayerHostThreshold: telemetryAPICfg.SprayerHostThreshold,
+				BurstinessThreshold:  telemetryAPICfg.BurstinessThreshold,
+				PeakRPSThreshold:     telemetryAPICfg.PeakRPSThreshold,
+			})
 			r.Route("/telemetry", func(r chi.Router) {
 				r.Use(TelemetryRateLimiter(10, 20, telemetryAPICfg.TrustProxyHeaders, logger))
 			r.Get("/hosts/{host}/top-ips", th.HandleTopIPs)
