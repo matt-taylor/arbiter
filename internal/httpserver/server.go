@@ -34,12 +34,13 @@ func NewServer(
 	store store.Store,
 	logger zerolog.Logger,
 	killswitchPublicHost, gatekeeperPublicHost string,
+	killswitchBaseURL string,
 	staticDir string,
 	publisher telemetry.Publisher,
 	telemetryRepo *query.Repository,
 	telemetryAPICfg config.TelemetryAPIConfig,
 ) *Server {
-	handlers := NewHandlers(engine, cache, store, logger, killswitchPublicHost, gatekeeperPublicHost, publisher)
+	handlers := NewHandlers(engine, cache, store, logger, killswitchPublicHost, gatekeeperPublicHost, publisher, killswitchBaseURL)
 
 	r := chi.NewRouter()
 
@@ -60,6 +61,9 @@ func NewServer(
 		r.Delete("/policies/{id}", handlers.HandleDeletePolicy)
 		r.Get("/effective", handlers.HandleEffective)
 		r.Post("/test/check", handlers.HandleTestCheck)
+
+		// Killswitch proxy endpoint (server-to-server)
+		r.Post("/killswitch/block-ip", handlers.HandleKillswitchBlockIP)
 
 		// Telemetry Query API (read-only, optional)
 		if telemetryRepo != nil {

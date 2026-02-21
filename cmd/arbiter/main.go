@@ -145,6 +145,7 @@ func main() {
 		logger,
 		cfg.KillswitchPublicHost,
 		cfg.GatekeeperPublicHost,
+		cfg.KillswitchBaseURL,
 		staticDir,
 		publisher,
 		telemetryRepo,

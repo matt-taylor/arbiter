@@ -55,7 +55,7 @@ func setupTestHandlers(t *testing.T) (*Handlers, store.Store) {
 	engine := arbiter.NewEngine(cache, client, "", "")
 	logger := zerolog.Nop()
 
-	handlers := NewHandlers(engine, cache, dbStore, logger, "", "", telemetry.NoopPublisher{})
+	handlers := NewHandlers(engine, cache, dbStore, logger, "", "", telemetry.NoopPublisher{}, "")
 
 	return handlers, dbStore
 }

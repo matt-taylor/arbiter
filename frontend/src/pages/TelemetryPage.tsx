@@ -27,8 +27,10 @@ import Select from '@/components/ui/select'
 import Loading from '@/components/ui/loading'
 import Badge from '@/components/ui/badge'
 import Tooltip from '@/components/ui/tooltip'
+import BlockIPModal, { type BlockIPModalData } from '@/components/BlockIPModal'
+import { useToast } from '@/hooks/useToast'
 import { cn } from '@/lib/utils'
-import { RefreshCw, ChevronDown, ChevronUp, X, Info } from 'lucide-react'
+import { RefreshCw, ChevronDown, ChevronUp, X, Info, ShieldBan } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -130,6 +132,16 @@ export default function TelemetryPage() {
   const overviewInFlightRef = useRef(false)
   const prevHostRef = useRef(selectedHost)
   const pathsSectionRef = useRef<HTMLDivElement>(null)
+
+  // ── Block IP modal state ────────────────────────────────────────────────
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockModalData, setBlockModalData] = useState<BlockIPModalData | null>(null)
+  const toast = useToast()
+
+  const openBlockModal = (data: BlockIPModalData) => {
+    setBlockModalData(data)
+    setBlockModalOpen(true)
+  }
 
   // ── URL sync (write) ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -543,6 +555,7 @@ export default function TelemetryPage() {
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Avg RPS</th>
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Peak RPS</th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reasons</th>
+                        <th className="px-4 py-3 w-16"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -559,6 +572,16 @@ export default function TelemetryPage() {
                                 <ReasonBadge key={r + i} flag={r} config={overviewConfig?.scanners} />
                               ))}
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => openBlockModal({ type: 'scanner', ip: row.ip, host: row.host })}
+                              title={`Block ${row.ip}`}
+                            >
+                              <ShieldBan className="h-4 w-4" />
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -588,6 +611,7 @@ export default function TelemetryPage() {
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Avg RPS</th>
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Peak RPS</th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reasons</th>
+                        <th className="px-4 py-3 w-16"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -603,6 +627,16 @@ export default function TelemetryPage() {
                                 <ReasonBadge key={r + i} flag={r} config={overviewConfig?.sprayers} />
                               ))}
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => openBlockModal({ type: 'sprayer', ip: row.ip })}
+                              title={`Block ${row.ip}`}
+                            >
+                              <ShieldBan className="h-4 w-4" />
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -635,6 +669,7 @@ export default function TelemetryPage() {
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Avg RPS</th>
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Peak RPS</th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reasons</th>
+                        <th className="px-4 py-3 w-16"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -653,6 +688,16 @@ export default function TelemetryPage() {
                                 <ReasonBadge key={r + i} flag={r} config={overviewConfig?.flooders} />
                               ))}
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => openBlockModal({ type: 'flooder', ip: row.ip, host: row.host, path: row.path })}
+                              title={`Block ${row.ip}`}
+                            >
+                              <ShieldBan className="h-4 w-4" />
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -818,6 +863,15 @@ export default function TelemetryPage() {
           )}
         </>
       )}
+
+      {/* ── Block IP Modal ───────────────────────────────────────────── */}
+      <BlockIPModal
+        open={blockModalOpen}
+        onClose={() => setBlockModalOpen(false)}
+        data={blockModalData}
+        onSuccess={(msg) => toast.success(msg)}
+        onError={(msg) => toast.error(msg)}
+      />
     </div>
   )
 }

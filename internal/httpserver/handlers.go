@@ -18,17 +18,19 @@ import (
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
-	engine    *arbiter.Engine
-	cache     *policycache.Cache
-	store     store.Store
-	logger    zerolog.Logger
-	ksHost    string
-	gkHost    string
-	publisher telemetry.Publisher
+	engine       *arbiter.Engine
+	cache        *policycache.Cache
+	store        store.Store
+	logger       zerolog.Logger
+	ksHost       string
+	gkHost       string
+	publisher    telemetry.Publisher
+	ksBaseURL    string       // Killswitch base URL for server-to-server proxy calls
+	ksHTTPClient *http.Client // HTTP client for Killswitch proxy calls
 }
 
 // NewHandlers creates a new handlers instance
-func NewHandlers(engine *arbiter.Engine, cache *policycache.Cache, store store.Store, logger zerolog.Logger, killswitchPublicHost, gatekeeperPublicHost string, publisher telemetry.Publisher) *Handlers {
+func NewHandlers(engine *arbiter.Engine, cache *policycache.Cache, store store.Store, logger zerolog.Logger, killswitchPublicHost, gatekeeperPublicHost string, publisher telemetry.Publisher, killswitchBaseURL string) *Handlers {
 	return &Handlers{
 		engine:    engine,
 		cache:     cache,
@@ -37,6 +39,10 @@ func NewHandlers(engine *arbiter.Engine, cache *policycache.Cache, store store.S
 		ksHost:    killswitchPublicHost,
 		gkHost:    gatekeeperPublicHost,
 		publisher: publisher,
+		ksBaseURL: killswitchBaseURL,
+		ksHTTPClient: &http.Client{
+			Timeout: 5 * time.Second,
+		},
 	}
 }
 
