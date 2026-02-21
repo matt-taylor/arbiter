@@ -499,7 +499,7 @@ export default function TelemetryPage() {
           {/* Overview loading */}
           {overviewLoading && <Loading />}
 
-          {/* Top Hosts table */}
+          {/* Top Hosts */}
           {!overviewLoading && !overviewError && overviewTopHosts && (
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-3">Top Hosts</h2>
@@ -508,30 +508,65 @@ export default function TelemetryPage() {
                   No data in this window.
                 </div>
               ) : (
-                <div className="border rounded-lg bg-card overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Host</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Unique IPs</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Avg RPS</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Peak RPS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overviewTopHosts.items.map((row) => (
-                        <tr key={row.host} className="border-b last:border-b-0">
-                          <td className="px-4 py-3 font-mono">{row.host}</td>
-                          <td className="text-right px-4 py-3 font-semibold">{row.total.toLocaleString()}</td>
-                          <td className="text-right px-4 py-3">{row.unique_ips.toLocaleString()}</td>
-                          <td className="text-right px-4 py-3">{row.avg_rps.toFixed(2)}</td>
-                          <td className="text-right px-4 py-3">{row.peak_rps.toFixed(2)}</td>
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block bg-card rounded-lg border overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
+                    <table className="w-full">
+                      <thead className="sticky top-0 z-10 bg-card">
+                        <tr className="border-b">
+                          <th className="text-left p-4 font-semibold bg-card">Host</th>
+                          <th className="text-right p-4 font-semibold bg-card">Total</th>
+                          <th className="text-right p-4 font-semibold bg-card">Unique IPs</th>
+                          <th className="text-right p-4 font-semibold bg-card">Avg RPS</th>
+                          <th className="text-right p-4 font-semibold bg-card">Peak RPS</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {overviewTopHosts.items.map((row) => (
+                          <tr key={row.host} className="border-b hover:bg-accent/50">
+                            <td className="p-4 font-mono text-sm">{row.host}</td>
+                            <td className="text-right p-4 font-semibold">{row.total.toLocaleString()}</td>
+                            <td className="text-right p-4">{row.unique_ips.toLocaleString()}</td>
+                            <td className="text-right p-4">{row.avg_rps.toFixed(2)}</td>
+                            <td className="text-right p-4">{row.peak_rps.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="block md:hidden space-y-3 p-4">
+                    {overviewTopHosts.items.map((row) => (
+                      <TableCard key={row.host}>
+                        <TableCardRow
+                          label="Host"
+                          value={<span className="font-mono text-sm">{row.host}</span>}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          <TableCardRow
+                            label="Total"
+                            value={<span className="font-semibold">{row.total.toLocaleString()}</span>}
+                          />
+                          <TableCardRow
+                            label="Unique IPs"
+                            value={row.unique_ips.toLocaleString()}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <TableCardRow
+                            label="Avg RPS"
+                            value={row.avg_rps.toFixed(2)}
+                          />
+                          <TableCardRow
+                            label="Peak RPS"
+                            value={row.peak_rps.toFixed(2)}
+                          />
+                        </div>
+                      </TableCard>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}
