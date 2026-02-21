@@ -28,6 +28,7 @@ import Loading from '@/components/ui/loading'
 import Badge from '@/components/ui/badge'
 import Tooltip from '@/components/ui/tooltip'
 import BlockIPModal, { type BlockIPModalData } from '@/components/BlockIPModal'
+import { TableCard, TableCardRow, TableCardActions } from '@/components/TableCard'
 import { useToast } from '@/hooks/useToast'
 import { cn } from '@/lib/utils'
 import { RefreshCw, ChevronDown, ChevronUp, X, Info, ShieldBan } from 'lucide-react'
@@ -535,7 +536,7 @@ export default function TelemetryPage() {
             </div>
           )}
 
-          {/* Suspicious Scanners table */}
+          {/* Suspicious Scanners */}
           {!overviewLoading && !overviewError && overviewScanners && (
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-1">Suspicious Scanners</h2>
@@ -545,54 +546,109 @@ export default function TelemetryPage() {
                   No data in this window.
                 </div>
               ) : (
-                <div className="border rounded-lg bg-card overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Host</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">IP</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Unique Paths</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Avg RPS</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Peak RPS</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reasons</th>
-                        <th className="px-4 py-3 w-16"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overviewScanners.items.map((row, idx) => (
-                        <tr key={`${row.host}-${row.ip}-${idx}`} className="border-b last:border-b-0">
-                          <td className="px-4 py-3 font-mono">{row.host}</td>
-                          <td className="px-4 py-3 font-mono">{row.ip}</td>
-                          <td className="text-right px-4 py-3">{row.unique_paths.toLocaleString()}</td>
-                          <td className="text-right px-4 py-3">{row.avg_rps.toFixed(2)}</td>
-                          <td className="text-right px-4 py-3">{row.peak_rps.toFixed(2)}</td>
-                          <td className="px-4 py-3">
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block bg-card rounded-lg border overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
+                    <table className="w-full">
+                      <thead className="sticky top-0 z-10 bg-card">
+                        <tr className="border-b">
+                          <th className="text-left p-4 font-semibold bg-card">Host</th>
+                          <th className="text-left p-4 font-semibold bg-card">IP</th>
+                          <th className="text-right p-4 font-semibold bg-card">Unique Paths</th>
+                          <th className="text-right p-4 font-semibold bg-card">Avg RPS</th>
+                          <th className="text-right p-4 font-semibold bg-card">Peak RPS</th>
+                          <th className="text-left p-4 font-semibold bg-card">Reasons</th>
+                          <th className="text-right p-4 font-semibold bg-card">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overviewScanners.items.map((row, idx) => (
+                          <tr key={`${row.host}-${row.ip}-${idx}`} className="border-b hover:bg-accent/50">
+                            <td className="p-4 font-mono text-sm">{row.host}</td>
+                            <td className="p-4 font-mono text-sm">{row.ip}</td>
+                            <td className="text-right p-4 font-semibold">{row.unique_paths.toLocaleString()}</td>
+                            <td className="text-right p-4">{row.avg_rps.toFixed(2)}</td>
+                            <td className="text-right p-4">{row.peak_rps.toFixed(2)}</td>
+                            <td className="p-4">
+                              <div className="flex flex-wrap gap-1">
+                                {row.reasons.map((r, i) => (
+                                  <ReasonBadge key={r + i} flag={r} config={overviewConfig?.scanners} />
+                                ))}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex justify-end">
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => openBlockModal({ type: 'scanner', ip: row.ip, host: row.host })}
+                                >
+                                  <ShieldBan className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="block md:hidden space-y-3 p-4">
+                    {overviewScanners.items.map((row, idx) => (
+                      <TableCard key={`${row.host}-${row.ip}-${idx}`}>
+                        <TableCardRow
+                          label="Host"
+                          value={<span className="font-mono text-sm">{row.host}</span>}
+                        />
+                        <TableCardRow
+                          label="IP Address"
+                          value={<span className="font-mono text-sm">{row.ip}</span>}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          <TableCardRow
+                            label="Unique Paths"
+                            value={<span className="font-semibold">{row.unique_paths.toLocaleString()}</span>}
+                          />
+                          <TableCardRow
+                            label="Avg RPS"
+                            value={row.avg_rps.toFixed(2)}
+                          />
+                        </div>
+                        <TableCardRow
+                          label="Peak RPS"
+                          value={row.peak_rps.toFixed(2)}
+                        />
+                        <TableCardRow
+                          label="Reasons"
+                          value={
                             <div className="flex flex-wrap gap-1">
                               {row.reasons.map((r, i) => (
                                 <ReasonBadge key={r + i} flag={r} config={overviewConfig?.scanners} />
                               ))}
                             </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => openBlockModal({ type: 'scanner', ip: row.ip, host: row.host })}
-                              title={`Block ${row.ip}`}
-                            >
-                              <ShieldBan className="h-4 w-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          }
+                        />
+                        <TableCardActions>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => openBlockModal({ type: 'scanner', ip: row.ip, host: row.host })}
+                            className="flex-1"
+                          >
+                            <ShieldBan className="h-4 w-4 mr-2" />
+                            Block IP
+                          </Button>
+                        </TableCardActions>
+                      </TableCard>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}
 
-          {/* Suspicious Sprayers table */}
+          {/* Suspicious Sprayers */}
           {!overviewLoading && !overviewError && overviewSprayers && (
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-1">Suspicious Sprayers</h2>
@@ -602,52 +658,103 @@ export default function TelemetryPage() {
                   No data in this window.
                 </div>
               ) : (
-                <div className="border rounded-lg bg-card overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">IP</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Unique Hosts</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Avg RPS</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Peak RPS</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reasons</th>
-                        <th className="px-4 py-3 w-16"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overviewSprayers.items.map((row, idx) => (
-                        <tr key={`${row.ip}-${idx}`} className="border-b last:border-b-0">
-                          <td className="px-4 py-3 font-mono">{row.ip}</td>
-                          <td className="text-right px-4 py-3">{row.unique_hosts.toLocaleString()}</td>
-                          <td className="text-right px-4 py-3">{row.avg_rps.toFixed(2)}</td>
-                          <td className="text-right px-4 py-3">{row.peak_rps.toFixed(2)}</td>
-                          <td className="px-4 py-3">
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block bg-card rounded-lg border overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
+                    <table className="w-full">
+                      <thead className="sticky top-0 z-10 bg-card">
+                        <tr className="border-b">
+                          <th className="text-left p-4 font-semibold bg-card">IP</th>
+                          <th className="text-right p-4 font-semibold bg-card">Unique Hosts</th>
+                          <th className="text-right p-4 font-semibold bg-card">Avg RPS</th>
+                          <th className="text-right p-4 font-semibold bg-card">Peak RPS</th>
+                          <th className="text-left p-4 font-semibold bg-card">Reasons</th>
+                          <th className="text-right p-4 font-semibold bg-card">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overviewSprayers.items.map((row, idx) => (
+                          <tr key={`${row.ip}-${idx}`} className="border-b hover:bg-accent/50">
+                            <td className="p-4 font-mono text-sm">{row.ip}</td>
+                            <td className="text-right p-4 font-semibold">{row.unique_hosts.toLocaleString()}</td>
+                            <td className="text-right p-4">{row.avg_rps.toFixed(2)}</td>
+                            <td className="text-right p-4">{row.peak_rps.toFixed(2)}</td>
+                            <td className="p-4">
+                              <div className="flex flex-wrap gap-1">
+                                {row.reasons.map((r, i) => (
+                                  <ReasonBadge key={r + i} flag={r} config={overviewConfig?.sprayers} />
+                                ))}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex justify-end">
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => openBlockModal({ type: 'sprayer', ip: row.ip })}
+                                >
+                                  <ShieldBan className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="block md:hidden space-y-3 p-4">
+                    {overviewSprayers.items.map((row, idx) => (
+                      <TableCard key={`${row.ip}-${idx}`}>
+                        <TableCardRow
+                          label="IP Address"
+                          value={<span className="font-mono text-sm">{row.ip}</span>}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          <TableCardRow
+                            label="Unique Hosts"
+                            value={<span className="font-semibold">{row.unique_hosts.toLocaleString()}</span>}
+                          />
+                          <TableCardRow
+                            label="Avg RPS"
+                            value={row.avg_rps.toFixed(2)}
+                          />
+                        </div>
+                        <TableCardRow
+                          label="Peak RPS"
+                          value={row.peak_rps.toFixed(2)}
+                        />
+                        <TableCardRow
+                          label="Reasons"
+                          value={
                             <div className="flex flex-wrap gap-1">
                               {row.reasons.map((r, i) => (
                                 <ReasonBadge key={r + i} flag={r} config={overviewConfig?.sprayers} />
                               ))}
                             </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => openBlockModal({ type: 'sprayer', ip: row.ip })}
-                              title={`Block ${row.ip}`}
-                            >
-                              <ShieldBan className="h-4 w-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          }
+                        />
+                        <TableCardActions>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => openBlockModal({ type: 'sprayer', ip: row.ip })}
+                            className="flex-1"
+                          >
+                            <ShieldBan className="h-4 w-4 mr-2" />
+                            Block IP
+                          </Button>
+                        </TableCardActions>
+                      </TableCard>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}
 
-          {/* Suspicious Flooders table */}
+          {/* Suspicious Flooders */}
           {!overviewLoading && !overviewError && overviewFlooders && (
             <div className="mb-6">
               <h2 className="text-lg font-semibold mb-1">Suspicious Flooders</h2>
@@ -657,53 +764,118 @@ export default function TelemetryPage() {
                   No data in this window.
                 </div>
               ) : (
-                <div className="border rounded-lg bg-card overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Host</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">IP</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Path</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Unique Paths</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Avg RPS</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Peak RPS</th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reasons</th>
-                        <th className="px-4 py-3 w-16"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overviewFlooders.items.map((row, idx) => (
-                        <tr key={`${row.host}-${row.ip}-${row.path}-${idx}`} className="border-b last:border-b-0">
-                          <td className="px-4 py-3 font-mono">{row.host}</td>
-                          <td className="px-4 py-3 font-mono">{row.ip}</td>
-                          <td className="px-4 py-3 font-mono break-all">{row.path}</td>
-                          <td className="text-right px-4 py-3 font-semibold">{row.total.toLocaleString()}</td>
-                          <td className="text-right px-4 py-3">{row.unique_paths.toLocaleString()}</td>
-                          <td className="text-right px-4 py-3">{row.avg_rps.toFixed(2)}</td>
-                          <td className="text-right px-4 py-3">{row.peak_rps.toFixed(2)}</td>
-                          <td className="px-4 py-3">
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block bg-card rounded-lg border overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
+                    <table className="w-full">
+                      <thead className="sticky top-0 z-10 bg-card">
+                        <tr className="border-b">
+                          <th className="text-left p-4 font-semibold bg-card">Host</th>
+                          <th className="text-left p-4 font-semibold bg-card">IP</th>
+                          <th className="text-left p-4 font-semibold bg-card">Path</th>
+                          <th className="text-right p-4 font-semibold bg-card">Total</th>
+                          <th className="text-right p-4 font-semibold bg-card">Unique Paths</th>
+                          <th className="text-right p-4 font-semibold bg-card">Avg RPS</th>
+                          <th className="text-right p-4 font-semibold bg-card">Peak RPS</th>
+                          <th className="text-left p-4 font-semibold bg-card">Reasons</th>
+                          <th className="text-right p-4 font-semibold bg-card">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overviewFlooders.items.map((row, idx) => (
+                          <tr key={`${row.host}-${row.ip}-${row.path}-${idx}`} className="border-b hover:bg-accent/50">
+                            <td className="p-4 font-mono text-sm">{row.host}</td>
+                            <td className="p-4 font-mono text-sm">{row.ip}</td>
+                            <td className="p-4 font-mono text-sm break-all">{row.path}</td>
+                            <td className="text-right p-4 font-semibold">{row.total.toLocaleString()}</td>
+                            <td className="text-right p-4">{row.unique_paths.toLocaleString()}</td>
+                            <td className="text-right p-4">{row.avg_rps.toFixed(2)}</td>
+                            <td className="text-right p-4">{row.peak_rps.toFixed(2)}</td>
+                            <td className="p-4">
+                              <div className="flex flex-wrap gap-1">
+                                {row.reasons.map((r, i) => (
+                                  <ReasonBadge key={r + i} flag={r} config={overviewConfig?.flooders} />
+                                ))}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex justify-end">
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => openBlockModal({ type: 'flooder', ip: row.ip, host: row.host, path: row.path })}
+                                >
+                                  <ShieldBan className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="block md:hidden space-y-3 p-4">
+                    {overviewFlooders.items.map((row, idx) => (
+                      <TableCard key={`${row.host}-${row.ip}-${row.path}-${idx}`}>
+                        <TableCardRow
+                          label="Host"
+                          value={<span className="font-mono text-sm">{row.host}</span>}
+                        />
+                        <TableCardRow
+                          label="IP Address"
+                          value={<span className="font-mono text-sm">{row.ip}</span>}
+                        />
+                        <TableCardRow
+                          label="Path"
+                          value={<span className="font-mono text-sm break-all">{row.path}</span>}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          <TableCardRow
+                            label="Total"
+                            value={<span className="font-semibold">{row.total.toLocaleString()}</span>}
+                          />
+                          <TableCardRow
+                            label="Unique Paths"
+                            value={row.unique_paths.toLocaleString()}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <TableCardRow
+                            label="Avg RPS"
+                            value={row.avg_rps.toFixed(2)}
+                          />
+                          <TableCardRow
+                            label="Peak RPS"
+                            value={row.peak_rps.toFixed(2)}
+                          />
+                        </div>
+                        <TableCardRow
+                          label="Reasons"
+                          value={
                             <div className="flex flex-wrap gap-1">
                               {row.reasons.map((r, i) => (
                                 <ReasonBadge key={r + i} flag={r} config={overviewConfig?.flooders} />
                               ))}
                             </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => openBlockModal({ type: 'flooder', ip: row.ip, host: row.host, path: row.path })}
-                              title={`Block ${row.ip}`}
-                            >
-                              <ShieldBan className="h-4 w-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          }
+                        />
+                        <TableCardActions>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => openBlockModal({ type: 'flooder', ip: row.ip, host: row.host, path: row.path })}
+                            className="flex-1"
+                          >
+                            <ShieldBan className="h-4 w-4 mr-2" />
+                            Block IP
+                          </Button>
+                        </TableCardActions>
+                      </TableCard>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}
