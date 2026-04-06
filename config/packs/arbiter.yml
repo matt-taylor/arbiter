@@ -30,6 +30,15 @@ policies:
     expand_common_domains: true
     subdomain: echo
 
+  - key: control_plane
+    name: Control Plane
+    description: Service configuration API and SPA (Rails + Vite). Traffic is checked by Killswitch and authorized via Gatekeeper.
+    required_services:
+      - gatekeeper
+      - killswitch
+    expand_common_domains: true
+    subdomain: control
+
   - key: homeassistant
     name: Home Assistant
     description: Home assistant is a home automation platform
