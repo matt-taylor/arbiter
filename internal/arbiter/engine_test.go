@@ -588,3 +588,34 @@ func TestEngine_Check_PolicyHost_NormalizeWWW_CaseInsensitive(t *testing.T) {
 		t.Errorf("expected X-Policy-Host to be normalized to 'example.com', got '%s'", headers["X-Policy-Host"])
 	}
 }
+
+func TestBuildKillswitchHeaders_ForwardsCfIPCountry(t *testing.T) {
+	cache := newMockCache()
+	client := downstream.NewClient("http://localhost:9090", "http://localhost:3000", 1000, 1000)
+	engine := NewEngine(cache, client, "", "")
+
+	h := engine.buildKillswitchHeaders(map[string]string{
+		"X-Original-Host":   "ex.com",
+		"X-Original-Uri":      "/",
+		"X-Original-Method": "GET",
+		"Cf-Ipcountry":      "US",
+	}, "trace-1")
+	if got := h["CF-IPCountry"]; got != "US" {
+		t.Errorf("CF-IPCountry: want US, got %q", got)
+	}
+}
+
+func TestBuildKillswitchHeaders_OmitsEmptyCfIPCountry(t *testing.T) {
+	cache := newMockCache()
+	client := downstream.NewClient("http://localhost:9090", "http://localhost:3000", 1000, 1000)
+	engine := NewEngine(cache, client, "", "")
+
+	h := engine.buildKillswitchHeaders(map[string]string{
+		"X-Original-Host":   "ex.com",
+		"X-Original-Uri":    "/",
+		"X-Original-Method": "GET",
+	}, "trace-2")
+	if _, ok := h["CF-IPCountry"]; ok {
+		t.Errorf("expected CF-IPCountry omitted, got %q", h["CF-IPCountry"])
+	}
+}

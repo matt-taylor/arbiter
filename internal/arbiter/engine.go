@@ -403,6 +403,10 @@ func (e *Engine) buildKillswitchHeaders(originalHeaders map[string]string, trace
 	if v := originalHeaders["X-Request-Id"]; v != "" {
 		headers["X-Request-Id"] = v
 	}
+	// Cloudflare geo (set by nginx auth subrequest from $http_cf_ipcountry)
+	if v := originalHeaders["Cf-Ipcountry"]; v != "" {
+		headers["CF-IPCountry"] = v
+	}
 
 	return headers
 }

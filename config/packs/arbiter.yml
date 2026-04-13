@@ -39,6 +39,15 @@ policies:
     expand_common_domains: true
     subdomain: control
 
+  - key: control_plane_jobs
+    name: Control Plane Jobs
+    description: Mission Control (Jobs UI) for the control plane.
+    required_services:
+      - gatekeeper
+      - killswitch
+    expand_common_domains: true
+    subdomain: control-jobs
+
   - key: homeassistant
     name: Home Assistant
     description: Home assistant is a home automation platform
