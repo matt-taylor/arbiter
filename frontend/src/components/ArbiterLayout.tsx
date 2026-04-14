@@ -88,7 +88,7 @@ export default function ArbiterLayout() {
     { name: 'Gatekeeper', url: getAdminSiteUrl('gatekeeper') },
     { name: 'Killswitch', url: getAdminSiteUrl('killswitch') },
     { name: 'Arbiter', url: getAdminSiteUrl('arbiter') },
-    { name: 'Control Plane', url: getAdminSiteUrl('control-plane') },
+    { name: 'Control Plane', url: getAdminSiteUrl('control') },
   ]
 
   return (
