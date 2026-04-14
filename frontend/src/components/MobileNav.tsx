@@ -100,6 +100,7 @@ export default function MobileNav({ open, onClose, navItems, isActive, theme, on
     { name: 'Gatekeeper', url: getAdminSiteUrl('gatekeeper') },
     { name: 'Killswitch', url: getAdminSiteUrl('killswitch') },
     { name: 'Arbiter', url: getAdminSiteUrl('arbiter') },
+    { name: 'Control Plane', url: getAdminSiteUrl('control-plane') },
   ]
 
   return (
