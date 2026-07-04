@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/domostack/arbiter/internal/arbiter"
+	"github.com/domostack/arbiter/internal/health"
 	"github.com/domostack/arbiter/internal/policycache"
 	"github.com/domostack/arbiter/internal/store"
 	"github.com/domostack/arbiter/internal/telemetry"
@@ -413,8 +414,16 @@ func (h *Handlers) HandleEffective(w http.ResponseWriter, r *http.Request) {
 
 // HandleHealthz handles GET /healthz
 func (h *Handlers) HandleHealthz(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	dbCheck := func() error {
+		_, err := h.store.List()
+		return err
+	}
+
+	status, report := health.BuildReport(dbCheck)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(report)
 }
 
 // HandleReadyz handles GET /readyz

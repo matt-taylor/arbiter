@@ -2,12 +2,15 @@ package httpserver
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
+	_ "modernc.org/sqlite"
 	"github.com/domostack/arbiter/internal/arbiter"
 	"github.com/domostack/arbiter/internal/downstream"
 	"github.com/domostack/arbiter/internal/policycache"
@@ -30,20 +33,32 @@ func setupTestHandlers(t *testing.T) (*Handlers, store.Store) {
 		t.Fatalf("failed to create store: %v", err)
 	}
 
-	// Create table - use a helper that works with the interface
-	// We'll create the policy via the store interface instead
-	_, err = dbStore.Create(&store.HostPolicy{
-		Host:                "setup-policy",
-		KillswitchRequired:  false,
-		GatekeeperRequired:  false,
-	})
+	testDB, err := sql.Open("sqlite", tmpfile.Name())
 	if err != nil {
-		// Table might already exist, try to delete the setup policy
-		_ = dbStore.Delete(1)
+		t.Fatalf("failed to open test db: %v", err)
 	}
-
-	// Clean up setup policy if it exists
-	_ = dbStore.Delete(1)
+	_, err = testDB.Exec(`
+		CREATE TABLE IF NOT EXISTS host_policies (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			host TEXT NOT NULL UNIQUE,
+			killswitch_required INTEGER NOT NULL,
+			gatekeeper_required INTEGER NOT NULL,
+			notes TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			managed INTEGER NOT NULL DEFAULT 0,
+			managed_pack TEXT NULL,
+			managed_key TEXT NULL,
+			managed_version INTEGER NULL,
+			managed_name TEXT NULL,
+			managed_description TEXT NULL,
+			managed_at TEXT NULL
+		)
+	`)
+	testDB.Close()
+	if err != nil {
+		t.Fatalf("failed to create table: %v", err)
+	}
 
 	t.Cleanup(func() {
 		dbStore.Close()
@@ -255,6 +270,9 @@ func TestHandlers_HandleEffective(t *testing.T) {
 func TestHandlers_HandleHealthz(t *testing.T) {
 	handlers, _ := setupTestHandlers(t)
 
+	t.Setenv("SERVICE_NAME", "arbiter")
+	t.Setenv("GIT_REVISION", "abc1234def5678901234567890abcdef12345678")
+
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	w := httptest.NewRecorder()
 
@@ -262,6 +280,75 @@ func TestHandlers_HandleHealthz(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		t.Errorf("expected application/json, got %q", ct)
+	}
+
+	var body map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode JSON: %v", err)
+	}
+	for _, key := range []string{"status", "service", "git_revision", "checks"} {
+		if _, ok := body[key]; !ok {
+			t.Errorf("missing required key %q", key)
+		}
+	}
+	if body["status"] != "healthy" {
+		t.Errorf("expected status healthy, got %v", body["status"])
+	}
+	if body["service"] != "arbiter" {
+		t.Errorf("expected service arbiter, got %v", body["service"])
+	}
+}
+
+func TestHandlers_HandleHealthz_MissingServiceName(t *testing.T) {
+	handlers, _ := setupTestHandlers(t)
+
+	t.Setenv("SERVICE_NAME", "")
+	t.Setenv("GIT_REVISION", "abc1234def5678901234567890abcdef12345678")
+
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	w := httptest.NewRecorder()
+
+	handlers.HandleHealthz(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode JSON: %v", err)
+	}
+	if body["status"] != "degraded" {
+		t.Errorf("expected degraded, got %v", body["status"])
+	}
+	if body["service"] != "unknown" {
+		t.Errorf("expected unknown service, got %v", body["service"])
+	}
+}
+
+func TestHandlers_HandleHealthz_DatabaseFailure(t *testing.T) {
+	handlers, dbStore := setupTestHandlers(t)
+	_ = dbStore.Close()
+
+	t.Setenv("SERVICE_NAME", "arbiter")
+	t.Setenv("GIT_REVISION", "abc1234def5678901234567890abcdef12345678")
+
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	w := httptest.NewRecorder()
+
+	handlers.HandleHealthz(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503, got %d", w.Code)
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode JSON: %v", err)
+	}
+	if body["status"] != "unhealthy" {
+		t.Errorf("expected unhealthy, got %v", body["status"])
 	}
 }
 
