@@ -287,25 +287,7 @@ func (e *Engine) Check(ctx context.Context, headers map[string]string) (*Decisio
 		}
 
 		if gkResp.Status == http.StatusOK {
-			// Extract identity headers
-			identityHeaders := make(map[string]string)
-			if gkResp.UserID != "" {
-				identityHeaders["X-Identity-User-Id"] = gkResp.UserID
-			}
-			if gkResp.Email != "" {
-				identityHeaders["X-Identity-Email"] = gkResp.Email
-			}
-		if gkResp.Groups != "" {
-			identityHeaders["X-Identity-Groups"] = gkResp.Groups
-		}
-		if gkResp.Username != "" {
-			identityHeaders["X-Identity-Username"] = gkResp.Username
-		}
-		if gkResp.Scopes != "" {
-			identityHeaders["X-Identity-Scopes"] = gkResp.Scopes
-		}
-
-		totalLatencyMs := float64(time.Since(totalStartTime).Nanoseconds()) / 1e6
+			totalLatencyMs := float64(time.Since(totalStartTime).Nanoseconds()) / 1e6
 			return &Decision{
 				Status:          http.StatusOK,
 				Decision:        "allow",
@@ -313,7 +295,7 @@ func (e *Engine) Check(ctx context.Context, headers map[string]string) (*Decisio
 				Source:          source,
 				Policy:          policyStr,
 				TraceID:         traceID,
-				IdentityHeaders: identityHeaders,
+				IdentityHeaders: gkResp.IdentityHeaders,
 				TotalLatencyMs: totalLatencyMs,
 				KillswitchLatencyMs: killswitchLatencyMs,
 				GatekeeperLatencyMs: gatekeeperLatencyMs,
@@ -434,6 +416,11 @@ func (e *Engine) buildGatekeeperHeaders(originalHeaders map[string]string, trace
 	// Cookie verbatim if present
 	if v := originalHeaders["Cookie"]; v != "" {
 		headers["Cookie"] = v
+	}
+
+	// Authorization header for service identity bearer tokens
+	if v := originalHeaders["Authorization"]; v != "" {
+		headers["Authorization"] = v
 	}
 
 	// Optional headers if present

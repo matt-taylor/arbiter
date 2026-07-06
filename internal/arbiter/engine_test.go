@@ -314,9 +314,12 @@ func TestEngine_Check_GatekeeperOnly_Forbid(t *testing.T) {
 func TestEngine_Check_GatekeeperOnly_Allow(t *testing.T) {
 	// Create mock Gatekeeper server
 	gkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Identity-Type", "user")
+		w.Header().Set("X-Identity-Id", "123")
 		w.Header().Set("X-Identity-User-Id", "123")
 		w.Header().Set("X-Identity-Email", "user@example.com")
 		w.Header().Set("X-Identity-Groups", "admin,users")
+		w.Header().Set("X-Identity-Scopes", "system:admin")
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer gkServer.Close()
@@ -349,6 +352,12 @@ func TestEngine_Check_GatekeeperOnly_Allow(t *testing.T) {
 	if decision.Decision != "allow" {
 		t.Errorf("expected decision 'allow', got '%s'", decision.Decision)
 	}
+	if decision.IdentityHeaders["X-Identity-Type"] != "user" {
+		t.Error("expected identity type header")
+	}
+	if decision.IdentityHeaders["X-Identity-Id"] != "123" {
+		t.Error("expected identity ID header")
+	}
 	if decision.IdentityHeaders["X-Identity-User-Id"] != "123" {
 		t.Error("expected identity user ID header")
 	}
@@ -357,6 +366,65 @@ func TestEngine_Check_GatekeeperOnly_Allow(t *testing.T) {
 	}
 	if decision.IdentityHeaders["X-Identity-Groups"] != "admin,users" {
 		t.Error("expected identity groups header")
+	}
+	if decision.IdentityHeaders["X-Identity-Scopes"] != "system:admin" {
+		t.Error("expected identity scopes header")
+	}
+}
+
+func TestEngine_Check_GatekeeperOnly_ServiceIdentity(t *testing.T) {
+	var receivedAuth string
+	gkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("X-Identity-Type", "service")
+		w.Header().Set("X-Identity-Id", "service:echo")
+		w.Header().Set("X-Identity-Scopes", "echo:read")
+		w.Header().Set("X-Identity-Service-Id", "service:echo")
+		w.Header().Set("X-Identity-Node-Id", "node-echo")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer gkServer.Close()
+
+	cache := newMockCache()
+	client := downstream.NewClient("http://localhost:9090", gkServer.URL, 1000, 1000)
+	engine := NewEngine(cache, client, "", "")
+
+	policy := &store.HostPolicy{
+		Host:               "example.com",
+		KillswitchRequired: false,
+		GatekeeperRequired: true,
+	}
+	cache.policies["example.com"] = policy
+
+	headers := map[string]string{
+		"X-Original-Host":   "example.com",
+		"X-Original-Uri":    "/path",
+		"X-Original-Method": "GET",
+		"Authorization":     "Bearer test-token",
+	}
+
+	decision, err := engine.Check(context.Background(), headers)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if receivedAuth != "Bearer test-token" {
+		t.Errorf("expected Authorization forwarded, got %q", receivedAuth)
+	}
+	if decision.Status != http.StatusOK {
+		t.Errorf("expected status 200, got %d", decision.Status)
+	}
+	if decision.IdentityHeaders["X-Identity-Type"] != "service" {
+		t.Error("expected service identity type")
+	}
+	if decision.IdentityHeaders["X-Identity-Id"] != "service:echo" {
+		t.Error("expected service identity ID")
+	}
+	if decision.IdentityHeaders["X-Identity-Service-Id"] != "service:echo" {
+		t.Error("expected service ID header")
+	}
+	if decision.IdentityHeaders["X-Identity-User-Id"] != "" {
+		t.Error("expected no user headers for service identity")
 	}
 }
 

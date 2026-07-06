@@ -22,13 +22,21 @@ type KillswitchResponse struct {
 
 // GatekeeperResponse represents the response from Gatekeeper
 type GatekeeperResponse struct {
-	Status      int
-	UserID      string
-	Email       string
-	Groups      string
-	Username    string
-	Scopes      string
-	LatencyMs   float64 // Latency of the gatekeeper check
+	Status          int
+	IdentityHeaders map[string]string
+	LatencyMs       float64 // Latency of the gatekeeper check
+}
+
+var gatekeeperIdentityHeaderNames = []string{
+	"X-Identity-Type",
+	"X-Identity-Id",
+	"X-Identity-Scopes",
+	"X-Identity-Groups",
+	"X-Identity-User-Id",
+	"X-Identity-Email",
+	"X-Identity-Username",
+	"X-Identity-Service-Id",
+	"X-Identity-Node-Id",
 }
 
 // Client handles HTTP calls to downstream services
@@ -165,14 +173,20 @@ func (c *Client) AuthorizeGatekeeper(ctx context.Context, headers map[string]str
 	}
 
 	result := &GatekeeperResponse{
-		Status:    resp.StatusCode,
-		UserID:    resp.Header.Get("X-Identity-User-Id"),
-		Email:     resp.Header.Get("X-Identity-Email"),
-		Groups:    resp.Header.Get("X-Identity-Groups"),
-		Username:  resp.Header.Get("X-Identity-Username"),
-		Scopes:    resp.Header.Get("X-Identity-Scopes"),
-		LatencyMs: latencyMs,
+		Status:          resp.StatusCode,
+		IdentityHeaders: parseGatekeeperIdentityHeaders(resp.Header),
+		LatencyMs:       latencyMs,
 	}
 
 	return result, nil
+}
+
+func parseGatekeeperIdentityHeaders(header http.Header) map[string]string {
+	identityHeaders := make(map[string]string)
+	for _, name := range gatekeeperIdentityHeaderNames {
+		if value := header.Get(name); value != "" {
+			identityHeaders[name] = value
+		}
+	}
+	return identityHeaders
 }

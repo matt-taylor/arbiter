@@ -80,9 +80,12 @@ func TestClient_AuthorizeGatekeeper_Allow(t *testing.T) {
 		if r.URL.Path != "/api/v1/authorize" {
 			t.Errorf("expected path /api/v1/authorize, got %s", r.URL.Path)
 		}
+		w.Header().Set("X-Identity-Type", "user")
+		w.Header().Set("X-Identity-Id", "123")
 		w.Header().Set("X-Identity-User-Id", "123")
 		w.Header().Set("X-Identity-Email", "user@example.com")
 		w.Header().Set("X-Identity-Groups", "admin,users")
+		w.Header().Set("X-Identity-Scopes", "system:admin")
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -105,14 +108,72 @@ func TestClient_AuthorizeGatekeeper_Allow(t *testing.T) {
 	if resp.Status != http.StatusOK {
 		t.Errorf("expected status 200, got %d", resp.Status)
 	}
-	if resp.UserID != "123" {
-		t.Errorf("expected user ID '123', got '%s'", resp.UserID)
+	if resp.IdentityHeaders["X-Identity-Type"] != "user" {
+		t.Errorf("expected identity type 'user', got '%s'", resp.IdentityHeaders["X-Identity-Type"])
 	}
-	if resp.Email != "user@example.com" {
-		t.Errorf("expected email 'user@example.com', got '%s'", resp.Email)
+	if resp.IdentityHeaders["X-Identity-Id"] != "123" {
+		t.Errorf("expected identity ID '123', got '%s'", resp.IdentityHeaders["X-Identity-Id"])
 	}
-	if resp.Groups != "admin,users" {
-		t.Errorf("expected groups 'admin,users', got '%s'", resp.Groups)
+	if resp.IdentityHeaders["X-Identity-User-Id"] != "123" {
+		t.Errorf("expected user ID '123', got '%s'", resp.IdentityHeaders["X-Identity-User-Id"])
+	}
+	if resp.IdentityHeaders["X-Identity-Email"] != "user@example.com" {
+		t.Errorf("expected email 'user@example.com', got '%s'", resp.IdentityHeaders["X-Identity-Email"])
+	}
+	if resp.IdentityHeaders["X-Identity-Groups"] != "admin,users" {
+		t.Errorf("expected groups 'admin,users', got '%s'", resp.IdentityHeaders["X-Identity-Groups"])
+	}
+	if resp.IdentityHeaders["X-Identity-Scopes"] != "system:admin" {
+		t.Errorf("expected scopes 'system:admin', got '%s'", resp.IdentityHeaders["X-Identity-Scopes"])
+	}
+}
+
+func TestClient_AuthorizeGatekeeper_ServiceIdentity(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Errorf("expected Authorization header forwarded, got '%s'", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("X-Identity-Type", "service")
+		w.Header().Set("X-Identity-Id", "service:echo")
+		w.Header().Set("X-Identity-Scopes", "echo:read")
+		w.Header().Set("X-Identity-Service-Id", "service:echo")
+		w.Header().Set("X-Identity-Node-Id", "node-echo")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient("http://localhost:9090", server.URL, 1000, 1000)
+
+	headers := map[string]string{
+		"X-Original-Host":   "example.com",
+		"X-Original-Uri":    "/path",
+		"X-Original-Method": "GET",
+		"Authorization":     "Bearer test-token",
+		"X-Auth-Trace":      "test-trace",
+	}
+
+	resp, err := client.AuthorizeGatekeeper(context.Background(), headers)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.Status != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.Status)
+	}
+	if resp.IdentityHeaders["X-Identity-Type"] != "service" {
+		t.Errorf("expected identity type 'service', got '%s'", resp.IdentityHeaders["X-Identity-Type"])
+	}
+	if resp.IdentityHeaders["X-Identity-Id"] != "service:echo" {
+		t.Errorf("expected identity ID 'service:echo', got '%s'", resp.IdentityHeaders["X-Identity-Id"])
+	}
+	if resp.IdentityHeaders["X-Identity-Service-Id"] != "service:echo" {
+		t.Errorf("expected service ID 'service:echo', got '%s'", resp.IdentityHeaders["X-Identity-Service-Id"])
+	}
+	if resp.IdentityHeaders["X-Identity-Node-Id"] != "node-echo" {
+		t.Errorf("expected node ID 'node-echo', got '%s'", resp.IdentityHeaders["X-Identity-Node-Id"])
+	}
+	if resp.IdentityHeaders["X-Identity-User-Id"] != "" {
+		t.Error("expected no user identity headers for service response")
 	}
 }
 
