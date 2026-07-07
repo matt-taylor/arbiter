@@ -428,6 +428,46 @@ func TestEngine_Check_GatekeeperOnly_ServiceIdentity(t *testing.T) {
 	}
 }
 
+func TestEngine_Check_GatekeeperOnly_ForwardsOriginalContentType(t *testing.T) {
+	var receivedContentType string
+	gkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedContentType = r.Header.Get("X-Original-Content-Type")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer gkServer.Close()
+
+	cache := newMockCache()
+	client := downstream.NewClient("http://localhost:9090", gkServer.URL, 1000, 1000)
+	engine := NewEngine(cache, client, "", "")
+
+	policy := &store.HostPolicy{
+		Host:               "example.com",
+		KillswitchRequired: false,
+		GatekeeperRequired: true,
+	}
+	cache.policies["example.com"] = policy
+
+	headers := map[string]string{
+		"X-Original-Host":          "example.com",
+		"X-Original-Uri":           "/api/v1/service_tokens",
+		"X-Original-Method":        "POST",
+		"X-Original-Content-Type":  "application/json; charset=utf-8",
+		"Authorization":            "Bearer bootstrap-token",
+	}
+
+	decision, err := engine.Check(context.Background(), headers)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if receivedContentType != "application/json; charset=utf-8" {
+		t.Errorf("expected X-Original-Content-Type forwarded, got %q", receivedContentType)
+	}
+	if decision.Status != http.StatusOK {
+		t.Errorf("expected status 200, got %d", decision.Status)
+	}
+}
+
 func TestEngine_Check_BothChecks(t *testing.T) {
 	// Create mock servers
 	ksServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

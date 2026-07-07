@@ -423,6 +423,11 @@ func (e *Engine) buildGatekeeperHeaders(originalHeaders map[string]string, trace
 		headers["Authorization"] = v
 	}
 
+	// Original request Content-Type for bootstrap exchange preflight
+	if v := originalHeaders["X-Original-Content-Type"]; v != "" {
+		headers["X-Original-Content-Type"] = v
+	}
+
 	// Optional headers if present
 	if v := originalHeaders["X-Forwarded-For"]; v != "" {
 		headers["X-Forwarded-For"] = v
